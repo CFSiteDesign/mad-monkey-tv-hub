@@ -86,11 +86,44 @@ export type Database = {
             referencedRelation: "properties"
             referencedColumns: ["slug"]
           },
+          {
+            foreignKeyName: "tv_assets_property_slug_fkey"
+            columns: ["property_slug"]
+            isOneToOne: false
+            referencedRelation: "properties_public"
+            referencedColumns: ["slug"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      properties_public: {
+        Row: {
+          coming_soon: boolean | null
+          country: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+          slug: string | null
+        }
+        Insert: {
+          coming_soon?: boolean | null
+          country?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          slug?: string | null
+        }
+        Update: {
+          coming_soon?: boolean | null
+          country?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          slug?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
