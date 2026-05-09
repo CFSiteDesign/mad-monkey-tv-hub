@@ -139,8 +139,11 @@ export const devLoginFn = createServerFn({ method: "POST" })
 
 // ---- Data fns ----
 
-export const listPropertiesFn = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await resolveSession() ?? ({ role: "global_marketing" } as Session);
+export const listPropertiesFn = createServerFn({ method: "GET" })
+  .inputValidator((d?: AuthInput) => ({ auth_token: normalizeAuthToken(d?.auth_token) }))
+  .handler(async ({ data }) => {
+  const session = await resolveSession(data.auth_token);
+  if (!session) throw new Response("Unauthorized", { status: 401 });
 
   const { data: props } = await supabaseAdmin
     .from("properties")
@@ -192,9 +195,9 @@ export const recordUploadFn = createServerFn({ method: "POST" })
   .inputValidator((d: {
     slug: string; file_url: string; file_name: string;
     file_size: number; file_type: "image" | "video";
-  }) => d)
+  } & AuthInput) => ({ ...d, auth_token: normalizeAuthToken(d.auth_token) }))
   .handler(async ({ data }) => {
-    const session = await resolveSession();
+    const session = await resolveSession(data.auth_token);
     if (!session) throw new Response("Unauthorized", { status: 401 });
     if (session.role === "gm" && session.slug !== data.slug) {
       throw new Response("Forbidden", { status: 403 });
@@ -226,9 +229,13 @@ export const recordUploadFn = createServerFn({ method: "POST" })
   });
 
 export const createUploadUrlFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { slug: string; file_name: string }) => d)
+  .inputValidator((d: { slug: string; file_name: string } & AuthInput) => ({
+    slug: String(d.slug),
+    file_name: String(d.file_name),
+    auth_token: normalizeAuthToken(d.auth_token),
+  }))
   .handler(async ({ data }) => {
-    const session = await resolveSession();
+    const session = await resolveSession(data.auth_token);
     if (!session) throw new Response("Unauthorized", { status: 401 });
     if (session.role === "gm" && session.slug !== data.slug) {
       throw new Response("Forbidden", { status: 403 });
