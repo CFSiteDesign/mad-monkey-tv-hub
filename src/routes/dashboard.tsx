@@ -178,6 +178,7 @@ function GlobalView() {
 
 function CollapsibleProperty({ property }: { property: PropertyData }) {
   const [open, setOpen] = useState(false);
+  const used = (property.assets || []).reduce((s, a) => s + (a.file_size || 0), 0);
   return (
     <div className="tv-card overflow-hidden">
       <button
@@ -189,6 +190,7 @@ function CollapsibleProperty({ property }: { property: PropertyData }) {
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-widest text-soft">{property.country}</p>
           <h3 className="text-xl font-bold truncate">{property.name}</h3>
+          <StorageBar used={used} />
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <span className="tv-pill">{property.assets.length} items</span>
@@ -216,6 +218,24 @@ function ComingSoonCard({ name, country }: { name: string; country: string }) {
   );
 }
 
+const STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+
+function StorageBar({ used }: { used: number }) {
+  const pct = Math.min(100, (used / STORAGE_LIMIT_BYTES) * 100);
+  const warn = pct >= 80;
+  return (
+    <div className="mt-2 w-full max-w-xs">
+      <div className="flex items-center justify-between text-[11px] text-soft mb-1">
+        <span>Storage</span>
+        <span className={warn ? "text-amber-400" : ""}>
+          {formatBytes(used)} / 10 GB
+        </span>
+      </div>
+      <Progress value={pct} className="h-1.5" />
+    </div>
+  );
+}
+
 // ---------- GM View ----------
 
 function GmView({ session }: { session: Extract<Session, { role: "gm" }> }) {
@@ -227,6 +247,7 @@ function GmView({ session }: { session: Extract<Session, { role: "gm" }> }) {
   if (isLoading || !data) return <div className="text-soft">Loading…</div>;
   const property = data.properties.find((p) => p.slug === session.slug);
   if (!property) return <div className="text-soft">Property not found.</div>;
+  const used = ((property as any).assets || []).reduce((s: number, a: Asset) => s + (a.file_size || 0), 0);
 
   return (
     <div className="space-y-8">
@@ -234,6 +255,7 @@ function GmView({ session }: { session: Extract<Session, { role: "gm" }> }) {
         <h2 className="country-heading mb-2">{property.country}</h2>
         <h1 className="text-4xl font-extrabold mb-1">{property.name}</h1>
         <p className="text-soft">{(property as any).assets?.length || 0} items currently playing</p>
+        <div className="mt-3 max-w-md"><StorageBar used={used} /></div>
       </div>
       <PropertyCard property={property as any} role="gm" hideCode />
     </div>
