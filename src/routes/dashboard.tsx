@@ -47,8 +47,11 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   async function pick(target: string) {
     setBusy(target);
     const res = await devLogin({ data: { target } });
+    if (res.ok) {
+      window.location.reload();
+      return;
+    }
     setBusy(null);
-    if (res.ok) onLoggedIn();
   }
 
   const grouped: Record<string, NonNullable<typeof props>> = {};
