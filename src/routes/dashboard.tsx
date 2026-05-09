@@ -97,7 +97,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (session: Session) => void })
     setBusy(target);
     const res = await devLogin({ data: { target } });
     if (res.ok) {
-      window.localStorage.setItem("tvhub_view", target);
+      window.localStorage.setItem(DASHBOARD_AUTH_KEY, target);
       window.history.replaceState(null, "", `/dashboard?view=${encodeURIComponent(target)}`);
       onLoggedIn(
         target === "__global__"
@@ -189,7 +189,7 @@ function GlobalView() {
   const fetchAll = useServerFn(listPropertiesFn);
   const { data, isLoading } = useQuery({
     queryKey: ["tv-all"],
-    queryFn: () => fetchAll(),
+    queryFn: () => fetchAll({ data: { auth_token: getDashboardAuthToken() } }),
   });
 
   if (isLoading || !data) return <div className="text-soft">Loading properties…</div>;
@@ -233,7 +233,7 @@ function GmView({ session }: { session: Extract<Session, { role: "gm" }> }) {
   const fetchAll = useServerFn(listPropertiesFn);
   const { data, isLoading } = useQuery({
     queryKey: ["tv-all"],
-    queryFn: () => fetchAll(),
+    queryFn: () => fetchAll({ data: { auth_token: getDashboardAuthToken() } }),
   });
   if (isLoading || !data) return <div className="text-soft">Loading…</div>;
   const property = data.properties.find((p) => p.slug === session.slug);
