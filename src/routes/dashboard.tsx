@@ -169,6 +169,8 @@ function DashboardInner({ session, onLogout }: { session: Session; onLogout: () 
     onLogout();
   }
 
+  const locationKey = session.role === "global_marketing" ? "__global__" : session.slug;
+
   return (
     <div className="min-h-screen bg-black">
       <TvHubHeader session={session} onLogout={handleLogout} />
@@ -179,6 +181,7 @@ function DashboardInner({ session, onLogout }: { session: Session; onLogout: () 
         }
       </main>
       <TvHubFooter />
+      <DashboardWalkthrough locationKey={locationKey} role={session.role} />
     </div>
   );
 }
