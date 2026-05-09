@@ -25,9 +25,11 @@ async function resolveSession(): Promise<Session | null> {
     .from("properties")
     .select("slug,name,country")
     .eq("access_code", token)
-    .maybeSingle();
-  if (!data) return null;
-  return { role: "gm", slug: data.slug, name: data.name, country: data.country };
+    .order("name")
+    .limit(1);
+  const row = data?.[0];
+  if (!row) return null;
+  return { role: "gm", slug: row.slug, name: row.name, country: row.country };
 }
 
 export const getSessionFn = createServerFn({ method: "GET" }).handler(
@@ -48,13 +50,13 @@ export const loginFn = createServerFn({ method: "POST" })
       return { ok: true as const, session: { role: "global_marketing" } as Session };
     }
 
-    const { data: prop } = await supabaseAdmin
+    const { data: props } = await supabaseAdmin
       .from("properties")
       .select("slug,name,country,coming_soon")
       .eq("access_code", code)
-      .maybeSingle();
-
-    if (!prop || prop.coming_soon) {
+      .order("name");
+    const prop = (props ?? []).find((p) => !p.coming_soon);
+    if (!prop) {
       return { ok: false as const, error: "Invalid access code" };
     }
 
