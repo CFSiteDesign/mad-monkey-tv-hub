@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useRef, type DragEvent, type ChangeEvent } from "react";
-import logo from "@/assets/TheoroXlogo.png";
+import logo from "@/assets/mad-monkey-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getSessionFn, loginFn, logoutFn,

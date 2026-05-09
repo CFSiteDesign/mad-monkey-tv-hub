@@ -1,4 +1,4 @@
-import logo from "@/assets/TheoroXlogo.png";
+import logo from "@/assets/mad-monkey-logo.png";
 import type { Session } from "@/lib/tv.functions";
 
 export function TvHubHeader({
