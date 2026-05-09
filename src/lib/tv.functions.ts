@@ -75,6 +75,40 @@ export const logoutFn = createServerFn({ method: "POST" }).handler(async () => {
   return { ok: true };
 });
 
+// DEV: list properties for the no-login picker
+export const listPropertiesPublicFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { data } = await supabaseAdmin
+    .from("properties")
+    .select("slug,name,country,coming_soon,access_code")
+    .order("country")
+    .order("name");
+  return data ?? [];
+});
+
+// DEV: log in directly as a property or global without typing a code
+export const devLoginFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { target: string }) => ({ target: String(d.target) }))
+  .handler(async ({ data }) => {
+    if (data.target === "__global__") {
+      setCookie(COOKIE_NAME, defaultAdminPassword(), {
+        httpOnly: true, secure: true, sameSite: "lax",
+        path: "/", maxAge: COOKIE_MAX_AGE,
+      });
+      return { ok: true as const };
+    }
+    const { data: prop } = await supabaseAdmin
+      .from("properties")
+      .select("slug,access_code,coming_soon")
+      .eq("slug", data.target)
+      .maybeSingle();
+    if (!prop || prop.coming_soon) return { ok: false as const, error: "Not available" };
+    setCookie(COOKIE_NAME, prop.access_code, {
+      httpOnly: true, secure: true, sameSite: "lax",
+      path: "/", maxAge: COOKIE_MAX_AGE,
+    });
+    return { ok: true as const };
+  });
+
 // ---- Data fns ----
 
 export const listPropertiesFn = createServerFn({ method: "GET" }).handler(async () => {
