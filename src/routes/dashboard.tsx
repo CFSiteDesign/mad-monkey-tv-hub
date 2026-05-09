@@ -44,7 +44,12 @@ function DashboardPage() {
     return <div className="min-h-screen bg-black flex items-center justify-center text-soft">Loading…</div>;
   }
   if (!activeSession) return <LoginScreen onLoggedIn={setLocalSession} />;
-  return <DashboardInner session={activeSession} onLogout={() => { setLocalSession(null); refetch(); }} />;
+  return <DashboardInner session={activeSession} onLogout={() => {
+    window.localStorage.removeItem("tvhub_view");
+    window.history.replaceState(null, "", "/dashboard");
+    setLocalSession(null);
+    refetch();
+  }} />;
 }
 
 // ---------- Dev Picker (no login) ----------
