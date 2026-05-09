@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
+import { useEffect, useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import logo from "@/assets/TheoroXlogo.png";
 import {
   getSessionFn, loginFn, logoutFn,
@@ -20,22 +20,36 @@ export const Route = createFileRoute("/dashboard")({
 
 function DashboardPage() {
   const fetchSession = useServerFn(getSessionFn);
+  const [localSession, setLocalSession] = useState<Session | null>(null);
   const { data: session, isLoading, refetch } = useQuery({
     queryKey: ["tv-session"],
     queryFn: () => fetchSession(),
     staleTime: 60_000,
   });
 
-  if (isLoading) {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const savedTarget = params.get("view") || window.localStorage.getItem("tvhub_view");
+    if (!savedTarget) return;
+    setLocalSession(
+      savedTarget === "__global__"
+        ? { role: "global_marketing" }
+        : { role: "gm", slug: savedTarget, name: "", country: "" }
+    );
+  }, []);
+
+  const activeSession = localSession ?? session;
+
+  if (isLoading && !activeSession) {
     return <div className="min-h-screen bg-black flex items-center justify-center text-soft">Loading…</div>;
   }
-  if (!session) return <LoginScreen onLoggedIn={() => refetch()} />;
-  return <DashboardInner session={session} onLogout={() => refetch()} />;
+  if (!activeSession) return <LoginScreen onLoggedIn={setLocalSession} />;
+  return <DashboardInner session={activeSession} onLogout={() => { setLocalSession(null); refetch(); }} />;
 }
 
 // ---------- Dev Picker (no login) ----------
 
-function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
+function LoginScreen({ onLoggedIn }: { onLoggedIn: (session: Session) => void }) {
   const fetchProps = useServerFn(listPropertiesPublicFn);
   const devLogin = useServerFn(devLoginFn);
   const { data: props, isLoading } = useQuery({
@@ -48,7 +62,13 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     setBusy(target);
     const res = await devLogin({ data: { target } });
     if (res.ok) {
-      window.location.reload();
+      window.localStorage.setItem("tvhub_view", target);
+      window.history.replaceState(null, "", `/dashboard?view=${encodeURIComponent(target)}`);
+      onLoggedIn(
+        target === "__global__"
+          ? { role: "global_marketing" }
+          : { role: "gm", slug: target, name: "", country: "" }
+      );
       return;
     }
     setBusy(null);
