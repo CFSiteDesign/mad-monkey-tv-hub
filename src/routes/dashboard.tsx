@@ -457,33 +457,6 @@ async function uploadToStorage(
   onProgress(100);
 }
 
-function uploadWithProgress(
-  url: string,
-  file: File,
-  onProgress: (pct: number) => void,
-): Promise<void> {
-  const storageUrl = /^https?:\/\//i.test(url)
-    ? url
-    : `${import.meta.env.VITE_SUPABASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", storageUrl);
-    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-    xhr.setRequestHeader("x-upsert", "true");
-    xhr.setRequestHeader("cache-control", "3600");
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) { onProgress(100); resolve(); }
-      else reject(new Error(`Upload failed for ${file.name} (${xhr.status}${xhr.responseText ? `: ${xhr.responseText}` : ""})`));
-    };
-    xhr.onerror = () => reject(new Error(`Upload failed for ${file.name}`));
-    xhr.send(file);
-  });
-}
-
 function formatBytes(n: number) {
   if (!n) return "0 B";
   const u = ["B","KB","MB","GB"]; let i = 0; let v = n;
