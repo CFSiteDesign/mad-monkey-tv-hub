@@ -737,7 +737,7 @@ function InteractiveRowDrag({
   onSuccess: () => void;
 }) {
   // Resolve the asset row that the spotlight is on, plus the next sibling.
-  const [geom, setGeom] = useState<{ r1: Rect; threshold: number } | null>(null);
+  const [geom, setGeom] = useState<{ r1: Rect; threshold: number; usingFallback: boolean } | null>(null);
 
   useLayoutEffect(() => {
     let raf = 0;
@@ -745,13 +745,28 @@ function InteractiveRowDrag({
       const handle = document.querySelector('[data-tour="reorder"]') as HTMLElement | null;
       const row1 = handle?.closest("div.flex") as HTMLElement | null;
       const row2 = row1?.nextElementSibling as HTMLElement | null;
-      if (!row1) { setGeom(null); return; }
+      if (!row1) {
+        const viewportW = window.innerWidth;
+        const viewportH = window.innerHeight;
+        setGeom({
+          r1: {
+            top: Math.min(Math.max(120, viewportH * 0.38), viewportH - 190),
+            left: Math.min(Math.max(18, viewportW / 2 - 260), viewportW - 538),
+            width: Math.min(520, viewportW - 36),
+            height: 64,
+          },
+          threshold: 72,
+          usingFallback: true,
+        });
+        return;
+      }
       const r1 = row1.getBoundingClientRect();
       const r2 = row2 ? row2.getBoundingClientRect() : null;
       const dy = r2 ? r2.top - r1.top : r1.height + 6;
       setGeom({
         r1: { top: r1.top, left: r1.left, width: r1.width, height: r1.height },
         threshold: dy * 0.6,
+        usingFallback: false,
       });
     };
     const tick = () => { measure(); raf = requestAnimationFrame(tick); };
@@ -765,7 +780,7 @@ function InteractiveRowDrag({
   const successFiredRef = useRef(false);
 
   if (!geom) return null;
-  const { r1, threshold } = geom;
+  const { r1, threshold, usingFallback } = geom;
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (completed) return;
