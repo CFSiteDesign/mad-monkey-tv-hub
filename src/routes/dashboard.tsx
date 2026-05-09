@@ -18,7 +18,7 @@ export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
 });
 
-function DashboardPage() {
+export function DashboardPage() {
   const fetchSession = useServerFn(getSessionFn);
   const [localSession, setLocalSession] = useState<Session | null>(null);
   const { data: session, isLoading, refetch } = useQuery({
