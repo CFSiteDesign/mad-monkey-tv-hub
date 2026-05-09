@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Pause, Play, Volume2, VolumeX, Heart } from "lucide-react";
 import { getPlayDataFn } from "@/lib/tv.functions";
+import { cacheMediaFiles, registerMediaCacheWorker, type MediaCacheStatus } from "@/lib/tv-media-cache";
 
 export const Route = createFileRoute("/$slug/play")({
   head: () => ({ meta: [{ title: "Mad Monkey TV" }] }),
@@ -46,6 +47,7 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
   const [showControls, setShowControls] = useState(false);
+  const [cacheStatus, setCacheStatus] = useState<MediaCacheStatus>({ total: assets.length, cached: 0, active: true });
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideTimer = useRef<number | undefined>(undefined);
   const advanceTimer = useRef<number | undefined>(undefined);
@@ -58,6 +60,17 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
   const advance = useCallback(() => {
     setIdx((i) => (i + 1) % assets.length);
   }, [assets.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const urls = assets.map((asset) => asset.file_url);
+    registerMediaCacheWorker().then(() => {
+      if (!cancelled) cacheMediaFiles(urls, (status) => !cancelled && setCacheStatus(status));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [assets]);
 
   // Image timer — keyed by the asset id (stable across refetches) so a
   // background poll doesn't restart the slideshow mid-image.
@@ -162,6 +175,12 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
           {muted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
         </button>
       </div>
+
+      {cacheStatus.active && cacheStatus.cached < cacheStatus.total ? (
+        <div className="absolute left-6 bottom-6 text-white/70 text-sm bg-white/10 backdrop-blur-md rounded-full px-4 py-2">
+          Saving media offline {cacheStatus.cached}/{cacheStatus.total}
+        </div>
+      ) : null}
     </div>
   );
 }
