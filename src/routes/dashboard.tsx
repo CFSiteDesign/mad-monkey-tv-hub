@@ -458,6 +458,8 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
   const [pct, setPct] = useState(0);
   const [fileIndex, setFileIndex] = useState({ current: 0, total: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const cancelledRef = useRef(false);
   const createUrl = useServerFn(createUploadUrlFn);
   const record = useServerFn(recordUploadFn);
 
@@ -477,10 +479,12 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
     }
     if (!accepted.length) return;
     setBusy(true);
+    cancelledRef.current = false;
     setFileIndex({ current: 0, total: accepted.length });
     try {
       let i = 0;
       for (const file of accepted) {
+        if (cancelledRef.current) break;
         i++;
         setFileIndex({ current: i, total: accepted.length });
         setPct(0);
@@ -489,29 +493,45 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
         const type = file.type.startsWith("video") || ext === "mp4" || ext === "mov" ? "video" : "image";
         const auth_token = getDashboardAuthToken();
         const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: file.name, auth_token } }));
-        await uploadToStorage(init.path, init.token, file, (p) => setPct(p));
+        const controller = new AbortController();
+        abortRef.current = controller;
+        await uploadToStorage(init.path, init.token, file, (p) => setPct(p), controller.signal);
+        abortRef.current = null;
+        if (cancelledRef.current) break;
         await record({ data: {
           slug, file_url: init.publicUrl, file_name: file.name,
           file_size: file.size, file_type: type, auth_token,
         }});
       }
-      onDone();
+      if (!cancelledRef.current) onDone();
     } catch (e: any) {
+      if (cancelledRef.current || e?.name === "AbortError") {
+        // user-cancelled, swallow
+      } else {
       alert(formatUploadAlert(e));
+      }
     } finally {
+      abortRef.current = null;
+      cancelledRef.current = false;
       setBusy(false); setProgress(""); setPct(0); setFileIndex({ current: 0, total: 0 });
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
+  function cancelUpload() {
+    cancelledRef.current = true;
+    abortRef.current?.abort();
+  }
+
   return (
     <div
       className={`tv-dropzone ${drag ? "is-dragging" : ""}`}
-      onClick={() => inputRef.current?.click()}
+      onClick={() => { if (!busy) inputRef.current?.click(); }}
       onDragOver={(e: DragEvent) => { e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
       onDrop={(e: DragEvent) => {
         e.preventDefault(); setDrag(false);
+        if (busy) return;
         handleFiles(e.dataTransfer.files);
       }}
     >
@@ -528,9 +548,18 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
       {busy ? (
         <div className="mt-3 space-y-1" onClick={(e) => e.stopPropagation()}>
           <Progress value={pct} />
-          <p className="text-xs text-soft">
-            {pct}% {fileIndex.total > 1 ? `· file ${fileIndex.current}/${fileIndex.total}` : ""}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-soft">
+              {pct}% {fileIndex.total > 1 ? `· file ${fileIndex.current}/${fileIndex.total}` : ""}
+            </p>
+            <button
+              type="button"
+              className="tv-btn tv-btn-ghost text-xs px-2 py-1"
+              onClick={(e) => { e.stopPropagation(); cancelUpload(); }}
+            >
+              Cancel upload
+            </button>
+          </div>
         </div>
       ) : (
         <p className="text-xs text-soft mt-1">Goes live on the TV immediately.</p>
@@ -575,16 +604,26 @@ async function uploadToStorage(
   token: string,
   file: File,
   onProgress: (pct: number) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const failure = await rawUploadToSignedUrl(path, token, file);
+  const failure = await rawUploadToSignedUrl(path, token, file, onProgress, signal);
   if (failure) {
+    if (signal?.aborted) {
+      throw Object.assign(new Error("Upload cancelled"), { name: "AbortError" });
+    }
     console.error("TV content upload failed", failure);
     throw Object.assign(new Error(failure.message), { uploadFailure: failure });
   }
   onProgress(100);
 }
 
-async function rawUploadToSignedUrl(path: string, token: string, file: File): Promise<StorageUploadFailure | null> {
+async function rawUploadToSignedUrl(
+  path: string,
+  token: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
+): Promise<StorageUploadFailure | null> {
   const failure: StorageUploadFailure = { fileName: file.name, message: "Upload failed" };
 
   try {
@@ -598,17 +637,35 @@ async function rawUploadToSignedUrl(path: string, token: string, file: File): Pr
     const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     if (apiKey) headers.apikey = apiKey;
 
-    const response = await fetch(`${projectOrigin}/storage/v1/object/upload/sign/tv-content/${encodeStoragePath(path)}?token=${encodeURIComponent(token)}`, {
-      method: "PUT",
-      headers,
-      body,
+    const url = `${projectOrigin}/storage/v1/object/upload/sign/tv-content/${encodeStoragePath(path)}?token=${encodeURIComponent(token)}`;
+    const result = await new Promise<{ status: number; statusText: string; body: string } | { aborted: true }>((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url);
+      for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable && onProgress) {
+          onProgress(Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+        }
+      };
+      xhr.onload = () => resolve({ status: xhr.status, statusText: xhr.statusText, body: xhr.responseText });
+      xhr.onerror = () => resolve({ status: 0, statusText: "Network error", body: "" });
+      xhr.onabort = () => resolve({ aborted: true });
+      if (signal) {
+        if (signal.aborted) { xhr.abort(); }
+        else signal.addEventListener("abort", () => xhr.abort(), { once: true });
+      }
+      xhr.send(body);
     });
 
-    if (response.ok) return null;
+    if ("aborted" in result) {
+      failure.message = `Upload cancelled for ${file.name}.`;
+      return failure;
+    }
+    if (result.status >= 200 && result.status < 300) return null;
 
-    failure.status = response.status;
-    failure.body = await response.text();
-    failure.message = classifyStorageUploadFailure(failure, response.statusText || "Upload failed");
+    failure.status = result.status;
+    failure.body = result.body;
+    failure.message = classifyStorageUploadFailure(failure, result.statusText || "Upload failed");
   } catch (rawError) {
     const fallbackMessage = rawError instanceof Error ? rawError.message : String(rawError || "Upload failed");
     failure.body = fallbackMessage;
