@@ -251,9 +251,9 @@ export const createUploadUrlFn = createServerFn({ method: "POST" })
   });
 
 export const deleteAssetFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator((d: { id: string } & AuthInput) => ({ id: String(d.id), auth_token: normalizeAuthToken(d.auth_token) }))
   .handler(async ({ data }) => {
-    const session = await resolveSession();
+    const session = await resolveSession(data.auth_token);
     if (!session) throw new Response("Unauthorized", { status: 401 });
     const { data: asset } = await supabaseAdmin
       .from("tv_assets").select("*").eq("id", data.id).maybeSingle();
@@ -270,9 +270,13 @@ export const deleteAssetFn = createServerFn({ method: "POST" })
   });
 
 export const reorderAssetsFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { slug: string; ids: string[] }) => d)
+  .inputValidator((d: { slug: string; ids: string[] } & AuthInput) => ({
+    slug: String(d.slug),
+    ids: Array.isArray(d.ids) ? d.ids.map(String) : [],
+    auth_token: normalizeAuthToken(d.auth_token),
+  }))
   .handler(async ({ data }) => {
-    const session = await resolveSession();
+    const session = await resolveSession(data.auth_token);
     if (!session) throw new Response("Unauthorized", { status: 401 });
     if (session.role === "gm" && session.slug !== data.slug) {
       throw new Response("Forbidden", { status: 403 });
@@ -287,12 +291,13 @@ export const reorderAssetsFn = createServerFn({ method: "POST" })
   });
 
 export const setImageDurationFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { slug: string; seconds: number }) => ({
+  .inputValidator((d: { slug: string; seconds: number } & AuthInput) => ({
     slug: String(d.slug),
     seconds: Math.max(2, Math.min(120, Math.floor(Number(d.seconds) || 8))),
+    auth_token: normalizeAuthToken(d.auth_token),
   }))
   .handler(async ({ data }) => {
-    const session = await resolveSession();
+    const session = await resolveSession(data.auth_token);
     if (!session) throw new Response("Unauthorized", { status: 401 });
     if (session.role === "gm" && session.slug !== data.slug) {
       throw new Response("Forbidden", { status: 403 });
