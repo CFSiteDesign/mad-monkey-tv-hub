@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PlaySlugRouteImport } from './routes/play.$slug'
+import { Route as SlugPlayRouteImport } from './routes/$slug.play'
 
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
@@ -23,40 +23,40 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlaySlugRoute = PlaySlugRouteImport.update({
-  id: '/play/$slug',
-  path: '/play/$slug',
+const SlugPlayRoute = SlugPlayRouteImport.update({
+  id: '/$slug/play',
+  path: '/$slug/play',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/play/$slug': typeof PlaySlugRoute
+  '/$slug/play': typeof SlugPlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/play/$slug': typeof PlaySlugRoute
+  '/$slug/play': typeof SlugPlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/play/$slug': typeof PlaySlugRoute
+  '/$slug/play': typeof SlugPlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/play/$slug'
+  fullPaths: '/' | '/dashboard' | '/$slug/play'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/play/$slug'
-  id: '__root__' | '/' | '/dashboard' | '/play/$slug'
+  to: '/' | '/dashboard' | '/$slug/play'
+  id: '__root__' | '/' | '/dashboard' | '/$slug/play'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
-  PlaySlugRoute: typeof PlaySlugRoute
+  SlugPlayRoute: typeof SlugPlayRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +75,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/play/$slug': {
-      id: '/play/$slug'
-      path: '/play/$slug'
-      fullPath: '/play/$slug'
-      preLoaderRoute: typeof PlaySlugRouteImport
+    '/$slug/play': {
+      id: '/$slug/play'
+      path: '/$slug/play'
+      fullPath: '/$slug/play'
+      preLoaderRoute: typeof SlugPlayRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -88,7 +88,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
-  PlaySlugRoute: PlaySlugRoute,
+  SlugPlayRoute: SlugPlayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -259,7 +259,7 @@ function PropertyCard({
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: ["tv-all"] });
   const playUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/play/${property.slug}` : `/play/${property.slug}`;
+    ? `${window.location.origin}/${property.slug}/play` : `/${property.slug}/play`;
 
   return (
     <div className="tv-card p-6">
@@ -293,7 +293,7 @@ function PropertyCard({
           <Link2 className="w-4 h-4" /> Copy public link
         </button>
         <a href={playUrl} target="_blank" rel="noreferrer" className="text-soft text-xs hover:text-white">
-          /play/{property.slug}
+          /{property.slug}/play
         </a>
       </div>
 

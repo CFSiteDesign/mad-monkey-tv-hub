@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Pause, Play, Volume2, VolumeX, Heart } from "lucide-react";
 import { getPlayDataFn } from "@/lib/tv.functions";
 
-export const Route = createFileRoute("/play/$slug")({
+export const Route = createFileRoute("/$slug/play")({
   head: () => ({ meta: [{ title: "Mad Monkey TV" }] }),
   component: PlayPage,
 });
