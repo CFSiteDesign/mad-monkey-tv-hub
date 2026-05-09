@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
  */
 
 type DemoKind = "fileDrop" | "drag" | null;
-type InteractiveKind = "fileDrop" | "drag";
+type InteractiveKind = "fileDrop" | "drag" | "slider";
 
 type StepCtx = {
   /** Trigger a demo animation overlay anchored to a selector. */
@@ -67,16 +67,17 @@ const GLOBAL_STEPS: Step[] = [
   },
   {
     title: "Reorder with drag and drop",
-    body: "Grab the highlighted item and drag it down past the next row to reorder. Give it a try.",
+    body: "Grab the top file and drag it below the second file to reorder the slideshow. Give it a try.",
     selector: '[data-tour="reorder"]',
     hint: "Drag down to reorder",
     interactive: "drag",
   },
   {
     title: "Image duration",
-    body: "Use this slider to set how long each image stays on screen during the slideshow. Videos always play through in full.",
+    body: "Drag the slider to set how long each image stays on screen during the slideshow. Videos always play through in full. Try it.",
     selector: '[data-tour="duration"]',
-    hint: "Set duration",
+    hint: "Drag to set",
+    interactive: "slider",
   },
   {
     title: "Compress videos for TV",
@@ -121,16 +122,17 @@ const GM_STEPS: Step[] = [
   },
   {
     title: "Reorder by drag and drop",
-    body: "Grab the highlighted item and drag it down past the next row. Give it a try.",
+    body: "Grab the top file and drag it below the second file to reorder. Give it a try.",
     selector: '[data-tour="reorder"]',
     hint: "Drag down to reorder",
     interactive: "drag",
   },
   {
     title: "Image duration",
-    body: "Use the slider to set how long each image stays on screen. Videos always play in full.",
+    body: "Drag the slider to set how long each image stays on screen. Videos always play in full. Try it.",
     selector: '[data-tour="duration"]',
-    hint: "Set duration",
+    hint: "Drag to set",
+    interactive: "slider",
   },
   {
     title: "Compress videos for TV",
@@ -500,6 +502,16 @@ export function DashboardWalkthrough({ locationKey, role }: {
       {/* Interactive: drag a ghost row down to reorder */}
       {current.interactive === "drag" && (
         <InteractiveRowDrag
+          targetRect={spot ?? fallbackInteractiveTarget}
+          completed={completed}
+          onSuccess={onInteractiveSuccess}
+        />
+      )}
+
+      {/* Interactive: drag a slider thumb across to set duration */}
+      {current.interactive === "slider" && (
+        <InteractiveSlider
+          targetRect={spot ?? fallbackInteractiveTarget}
           completed={completed}
           onSuccess={onInteractiveSuccess}
         />
@@ -754,143 +766,278 @@ function InteractiveFileDrop({
 /* ------------------------------------------------------------------ */
 
 function InteractiveRowDrag({
+  targetRect,
   completed,
   onSuccess,
 }: {
+  targetRect: Rect;
   completed: boolean;
   onSuccess: () => void;
 }) {
-  // Resolve the asset row that the spotlight is on, plus the next sibling.
-  const [geom, setGeom] = useState<{ r1: Rect; threshold: number; usingFallback: boolean } | null>(null);
+  // A self-contained 2-card list. The user grabs the top card and drops it
+  // below the bottom card. We render the cards near the spotlight (or at the
+  // fallback target) so the demo always works regardless of real DOM contents.
+  const ROW_H = 64;
+  const GAP = 8;
+  const CONTAINER_H = ROW_H * 2 + GAP;
 
-  useLayoutEffect(() => {
-    let raf = 0;
-    const measure = () => {
-      const handle = document.querySelector('[data-tour="reorder"]') as HTMLElement | null;
-      const row1 = handle?.closest("div.flex") as HTMLElement | null;
-      const row2 = row1?.nextElementSibling as HTMLElement | null;
-      if (!row1) {
-        const viewportW = window.innerWidth;
-        const viewportH = window.innerHeight;
-        const width = Math.min(520, viewportW - 36);
-        const nextGeom = {
-          r1: {
-            top: Math.min(Math.max(320, viewportH * 0.6), viewportH - 150),
-            left: Math.min(Math.max(18, viewportW / 2 - width / 2), viewportW - width - 18),
-            width,
-            height: 64,
-          },
-          threshold: 72,
-          usingFallback: true,
-        };
-        setGeom({
-          ...nextGeom,
-        });
-        return;
-      }
-      const r1 = row1.getBoundingClientRect();
-      const r2 = row2 ? row2.getBoundingClientRect() : null;
-      const dy = r2 ? r2.top - r1.top : r1.height + 6;
-      setGeom({
-        r1: { top: r1.top, left: r1.left, width: r1.width, height: r1.height },
-        threshold: dy * 0.6,
-        usingFallback: false,
-      });
-    };
-    const tick = () => { measure(); raf = requestAnimationFrame(tick); };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+  const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const viewportH = typeof window !== "undefined" ? window.innerHeight : 768;
+  const width = Math.min(Math.max(targetRect.width, 320), 520);
+  const left = Math.min(
+    Math.max(18, targetRect.left + targetRect.width / 2 - width / 2),
+    viewportW - width - 18,
+  );
+  const top = Math.min(
+    Math.max(80, targetRect.top + targetRect.height / 2 - CONTAINER_H / 2),
+    viewportH - CONTAINER_H - 24,
+  );
 
   const [dy, setDy] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [swapped, setSwapped] = useState(false);
   const startYRef = useRef(0);
   const successFiredRef = useRef(false);
 
-  if (!geom) return null;
-  const { r1, threshold, usingFallback } = geom;
+  const threshold = ROW_H * 0.55 + GAP;
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (completed) return;
+    if (completed || swapped) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     startYRef.current = e.clientY;
     setDragging(true);
   }
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!dragging) return;
-    setDy(Math.max(-40, e.clientY - startYRef.current));
+    setDy(Math.max(-20, e.clientY - startYRef.current));
   }
   function onPointerUp() {
     if (!dragging) return;
     setDragging(false);
     if (dy >= threshold && !successFiredRef.current) {
       successFiredRef.current = true;
-      // Snap to swapped position.
-      setDy(threshold * 1.6);
+      setSwapped(true);
+      setDy(0);
       onSuccess();
     } else {
       setDy(0);
     }
   }
 
+  // When swapped, demo file 1 lives in slot 2 and vice-versa.
+  const file1Top = swapped ? ROW_H + GAP : 0;
+  const file2Top = swapped ? 0 : ROW_H + GAP;
+
+  return (
+    <div
+      className="absolute pointer-events-none"
+      style={{ top, left, width, height: CONTAINER_H, zIndex: 80 }}
+    >
+      {/* Bottom (static) card — fake-demo-video.mp4 */}
+      <div
+        className="absolute left-0 w-full flex items-center gap-3 px-3 rounded-lg bg-white/10 border border-white/30 backdrop-blur-sm text-xs text-white/85"
+        style={{
+          top: file2Top,
+          height: ROW_H,
+          transition: "top 260ms cubic-bezier(.2,.7,.2,1)",
+        }}
+      >
+        <FileImage className="w-9 h-9 rounded-md bg-black/50 p-2 shrink-0" />
+        <div className="min-w-0">
+          <p className="truncate font-semibold">fake-demo-video.mp4</p>
+          <p className="text-white/55">Demo file #2</p>
+        </div>
+      </div>
+
+      {/* Top (draggable) card — fake-demo-image.jpg */}
+      <div
+        className="absolute left-0 w-full pointer-events-auto select-none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        style={{
+          top: file1Top,
+          height: ROW_H,
+          transform: `translateY(${dy}px)`,
+          transition: dragging ? "none" : "top 260ms cubic-bezier(.2,.7,.2,1), transform 220ms ease-out",
+          cursor: completed || swapped ? "default" : dragging ? "grabbing" : "grab",
+          touchAction: "none",
+          zIndex: 2,
+        }}
+      >
+        <div
+          className={`relative w-full h-full flex items-center gap-3 px-3 rounded-lg backdrop-blur-sm ${
+            completed || swapped
+              ? "bg-emerald-500/25 border-2 border-emerald-400 text-white"
+              : "bg-white text-black border-2 border-white"
+          }`}
+          style={{
+            boxShadow: dragging
+              ? "0 18px 40px -10px rgba(255,45,135,0.6)"
+              : "0 8px 24px -10px rgba(0,0,0,0.5)",
+            transform: dragging ? "scale(1.02) rotate(-1deg)" : "none",
+            transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
+          }}
+        >
+          {completed || swapped ? (
+            <Check className="w-6 h-6 shrink-0" />
+          ) : (
+            <GripVertical className="w-6 h-6 shrink-0" strokeWidth={2.5} />
+          )}
+          <FileImage className="w-9 h-9 rounded-md bg-black/10 p-2 shrink-0" />
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-xs">fake-demo-image.jpg</p>
+            <p className={`text-[11px] ${completed || swapped ? "text-white/70" : "text-black/55"}`}>
+              Demo file #1
+            </p>
+          </div>
+
+          {!dragging && !completed && !swapped && (
+            <div
+              className="absolute pointer-events-none"
+              style={{ top: -6, right: 12 }}
+            >
+              <div className="tv-tour-pointer flex flex-col items-center gap-1">
+                <MousePointer2
+                  className="w-7 h-7 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.95)]"
+                  strokeWidth={2.5}
+                  fill="white"
+                />
+                <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
+                  Drag below file #2
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Interactive: drag a slider thumb across most of the track            */
+/* ------------------------------------------------------------------ */
+
+function InteractiveSlider({
+  targetRect,
+  completed,
+  onSuccess,
+}: {
+  targetRect: Rect;
+  completed: boolean;
+  onSuccess: () => void;
+}) {
+  const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const viewportH = typeof window !== "undefined" ? window.innerHeight : 768;
+  const width = Math.min(Math.max(targetRect.width, 320), 480);
+  const HEIGHT = 80;
+  const left = Math.min(
+    Math.max(18, targetRect.left + targetRect.width / 2 - width / 2),
+    viewportW - width - 18,
+  );
+  const top = Math.min(
+    Math.max(80, targetRect.top + targetRect.height / 2 - HEIGHT / 2),
+    viewportH - HEIGHT - 24,
+  );
+
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [pct, setPct] = useState(0.1); // start near the left
+  const [dragging, setDragging] = useState(false);
+  const successFiredRef = useRef(false);
+
+  const minSecs = 2;
+  const maxSecs = 60;
+  const secs = Math.round(minSecs + pct * (maxSecs - minSecs));
+
+  function setFromClientX(clientX: number) {
+    const track = trackRef.current;
+    if (!track) return;
+    const r = track.getBoundingClientRect();
+    const next = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    setPct(next);
+    if (next >= 0.6 && !successFiredRef.current) {
+      successFiredRef.current = true;
+      onSuccess();
+    }
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (completed) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setDragging(true);
+    setFromClientX(e.clientX);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setFromClientX(e.clientX);
+  }
+  function onPointerUp() { setDragging(false); }
+
   return (
     <div
       className="absolute pointer-events-auto select-none"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      style={{
-        top: r1.top,
-        left: r1.left,
-        width: r1.width,
-        height: r1.height,
-        transform: `translateY(${dy}px)`,
-        transition: dragging ? "none" : "transform 220ms ease-out",
-        cursor: completed ? "default" : dragging ? "grabbing" : "grab",
-        touchAction: "none",
-        zIndex: 10,
-      }}
+      style={{ top, left, width, height: HEIGHT, zIndex: 80, touchAction: "none" }}
     >
-      <div
-        className={`absolute inset-0 rounded-lg backdrop-blur-sm ${
-          completed
-            ? "bg-emerald-500/20 border-2 border-emerald-400"
-            : "bg-white/15 border-2 border-white/80"
-        }`}
-        style={{
-          boxShadow: dragging
-            ? "0 18px 40px -10px rgba(255,45,135,0.6)"
-            : "0 8px 24px -10px rgba(0,0,0,0.5)",
-        }}
-      />
-      <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]">
-        {completed ? <Check className="w-6 h-6" /> : <GripVertical className="w-6 h-6" strokeWidth={2.5} />}
+      <div className="flex items-center justify-between mb-2 text-xs text-white/85">
+        <span className="font-semibold">Image duration</span>
+        <span className={`font-mono tabular-nums ${completed ? "text-emerald-300" : "text-white"}`}>
+          {secs}s
+        </span>
       </div>
-      {usingFallback && (
-        <div className="absolute inset-0 flex items-center gap-3 px-10 text-xs text-white/85">
-          <FileImage className="w-9 h-9 rounded-md bg-black/50 p-2" />
-          <div className="min-w-0">
-            <p className="truncate font-semibold">fake-demo-video.mp4</p>
-            <p className="text-white/55">Demo reorder item</p>
-          </div>
-        </div>
-      )}
-      {!dragging && !completed && (
+      <div
+        ref={trackRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className="relative h-3 rounded-full bg-white/15 border border-white/25 cursor-pointer"
+      >
         <div
-          className="absolute"
-          style={{ top: r1.height / 2 - 14, left: r1.width / 2 - 14 }}
+          className={`absolute left-0 top-0 h-full rounded-full ${
+            completed ? "bg-emerald-400" : "tv-gradient-bg"
+          }`}
+          style={{ width: `${pct * 100}%`, transition: dragging ? "none" : "width 160ms ease-out" }}
+        />
+        <div
+          className="absolute top-1/2"
+          style={{
+            left: `${pct * 100}%`,
+            transform: "translate(-50%, -50%)",
+            transition: dragging ? "none" : "left 160ms ease-out",
+          }}
         >
-          <div className="tv-tour-pointer flex flex-col items-center gap-1">
-            <MousePointer2
-              className="w-7 h-7 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]"
-              strokeWidth={2.5}
-              fill="white"
-            />
-            <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
-              Drag down
-            </span>
+          <div
+            className={`w-6 h-6 rounded-full border-2 ${
+              completed
+                ? "bg-emerald-400 border-white"
+                : "bg-white border-white"
+            } shadow-[0_4px_14px_rgba(255,45,135,0.7)] flex items-center justify-center`}
+          >
+            {completed && <Check className="w-3.5 h-3.5 text-emerald-900" />}
           </div>
+          {!dragging && !completed && pct < 0.5 && (
+            <div
+              className="absolute pointer-events-none"
+              style={{ top: -36, left: -10 }}
+            >
+              <div className="tv-tour-pointer flex flex-col items-center gap-1">
+                <MousePointer2
+                  className="w-7 h-7 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.95)]"
+                  strokeWidth={2.5}
+                  fill="white"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {!completed && (
+        <div className="mt-2 flex justify-center">
+          <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
+            Drag the thumb to the right
+          </span>
         </div>
       )}
     </div>
