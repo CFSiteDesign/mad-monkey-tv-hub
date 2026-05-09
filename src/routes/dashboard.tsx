@@ -425,13 +425,11 @@ function uploadWithProgress(
   onProgress: (pct: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const formData = new FormData();
-    formData.append("cacheControl", "3600");
-    formData.append("", file);
-
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
-    xhr.setRequestHeader("x-upsert", "false");
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.setRequestHeader("x-upsert", "true");
+    xhr.setRequestHeader("cache-control", "3600");
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
@@ -440,7 +438,7 @@ function uploadWithProgress(
       else reject(new Error(`Upload failed for ${file.name} (${xhr.status}${xhr.responseText ? `: ${xhr.responseText}` : ""})`));
     };
     xhr.onerror = () => reject(new Error(`Upload failed for ${file.name}`));
-    xhr.send(formData);
+    xhr.send(file);
   });
 }
 
