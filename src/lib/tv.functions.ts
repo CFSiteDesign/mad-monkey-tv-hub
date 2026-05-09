@@ -9,6 +9,15 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 const COOKIE_NAME = "tvhub_session";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
+function sortKampotLast<T extends { slug: string; country: string }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    if (a.country !== b.country) return a.country.localeCompare(b.country);
+    if (a.slug === "kampot") return 1;
+    if (b.slug === "kampot") return -1;
+    return 0;
+  });
+}
+
 function defaultAdminPassword() {
   return process.env.ADMIN_PASSWORD || "9";
 }
@@ -120,8 +129,8 @@ export const listPropertiesFn = createServerFn({ method: "GET" }).handler(async 
     .select("id,slug,name,country,access_code,coming_soon")
     .order("country")
     .order("name");
-
-  const slugs = (props ?? []).map((p) => p.slug);
+  const orderedProps = sortKampotLast(props ?? []);
+  const slugs = orderedProps.map((p) => p.slug);
   const { data: assets } = await supabaseAdmin
     .from("tv_assets")
     .select("*")
@@ -134,7 +143,7 @@ export const listPropertiesFn = createServerFn({ method: "GET" }).handler(async 
   }
 
   // Hide access codes from GM scope
-  const sanitized = (props ?? []).map((p) => {
+  const sanitized = orderedProps.map((p) => {
     if (session.role === "global_marketing") return { ...p, assets: byProp[p.slug] ?? [] };
     return {
       id: p.id, slug: p.slug, name: p.name, country: p.country,
