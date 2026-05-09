@@ -405,7 +405,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
       ) : (
         <div
           className="absolute inset-0 bg-black/72 pointer-events-auto"
-          onClick={close}
+          onClick={(e) => e.stopPropagation()}
         />
       )}
 
@@ -609,9 +609,17 @@ function InteractiveFileDrop({
   completed: boolean;
   onSuccess: () => void;
 }) {
-  // Ghost starts above the upload zone, slightly to the right of center.
-  const startTop = Math.max(20, targetRect.top - 110);
-  const startLeft = targetRect.left + targetRect.width / 2 - 90;
+  // Keep the fake demo file inside the viewport so there is always something visible to grab.
+  const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const viewportH = typeof window !== "undefined" ? window.innerHeight : 768;
+  const canSitAbove = targetRect.top > 132;
+  const startTop = canSitAbove
+    ? targetRect.top - 96
+    : Math.min(viewportH - 92, targetRect.top + targetRect.height + 18);
+  const startLeft = Math.min(
+    Math.max(18, targetRect.left + targetRect.width / 2 - 100),
+    viewportW - 218,
+  );
 
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: startTop, left: startLeft });
   const [dragging, setDragging] = useState(false);
@@ -668,11 +676,11 @@ function InteractiveFileDrop({
       style={{
         top: pos.top,
         left: pos.left,
-        width: 180,
+        width: 200,
         cursor: completed ? "default" : dragging ? "grabbing" : "grab",
         transition: dragging ? "none" : "top 220ms ease-out, left 220ms ease-out",
         touchAction: "none",
-        zIndex: 10,
+        zIndex: 80,
       }}
     >
       <div
@@ -690,7 +698,7 @@ function InteractiveFileDrop({
         }}
       >
         {completed ? <Check className="w-4 h-4" /> : <FileImage className="w-4 h-4" />}
-        <span>demo-image.jpg</span>
+        <span>fake-demo-image.jpg</span>
       </div>
       {!dragging && !completed && (
         <div
@@ -709,7 +717,7 @@ function InteractiveFileDrop({
       {!dragging && !completed && (
         <div className="mt-2 flex justify-center">
           <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
-            Grab me & drag into the box
+            Grab this fake file
           </span>
         </div>
       )}
