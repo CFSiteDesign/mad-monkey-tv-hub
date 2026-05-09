@@ -522,15 +522,22 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
     if (!files || !files.length) return;
     const allowedExt = ["mp4", "mov", "png", "jpg", "jpeg"];
     const allowedMime = ["video/mp4", "video/quicktime", "image/png", "image/jpeg"];
+    const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
     const accepted: File[] = [];
     const rejected: string[] = [];
+    const oversized: string[] = [];
     for (const f of Array.from(files)) {
       const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
       const ok = allowedExt.includes(ext) || allowedMime.includes(f.type);
-      if (ok) accepted.push(f); else rejected.push(f.name);
+      if (!ok) { rejected.push(f.name); continue; }
+      if (f.size > MAX_FILE_BYTES) { oversized.push(f.name); continue; }
+      accepted.push(f);
     }
     if (rejected.length) {
       alert(`Only MP4, MOV, PNG and JPEG are allowed.\nSkipped: ${rejected.join(", ")}`);
+    }
+    if (oversized.length) {
+      alert(`Maximum file size is 2 GB.\nSkipped: ${oversized.join(", ")}`);
     }
     if (!accepted.length) return;
     setBusy(true);
