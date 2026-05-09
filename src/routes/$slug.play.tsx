@@ -23,10 +23,11 @@ function PlayPage() {
   if (!data || !data.property) return <NotFound />;
   if (!data.assets.length) return <Holding />;
 
-  return <Player assets={data.assets} />;
+  const seconds = (data.property as any).image_duration_seconds || 8;
+  return <Player assets={data.assets} imageSeconds={seconds} />;
 }
 
-function Player({ assets }: { assets: { id: string; file_url: string; file_type: string }[] }) {
+function Player({ assets, imageSeconds }: { assets: { id: string; file_url: string; file_type: string }[]; imageSeconds: number }) {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -43,23 +44,24 @@ function Player({ assets }: { assets: { id: string; file_url: string; file_type:
     setIdx((i) => (i + 1) % assets.length);
   }, [assets.length]);
 
-  // Image timer: 8s, preload next at 7s
+  // Image timer driven by per-property setting
   useEffect(() => {
     if (paused) return;
     if (current.file_type !== "image") return;
-    advanceTimer.current = window.setTimeout(advance, 8000);
+    const ms = Math.max(2, imageSeconds) * 1000;
+    advanceTimer.current = window.setTimeout(advance, ms);
     const pre = window.setTimeout(() => {
       if (next.file_type === "image") {
         const img = new Image();
         img.src = next.file_url;
         preloadRef.current = img;
       }
-    }, 7000);
+    }, Math.max(1000, ms - 1000));
     return () => {
       clearTimeout(advanceTimer.current);
       clearTimeout(pre);
     };
-  }, [current, next, paused, advance]);
+  }, [current, next, paused, advance, imageSeconds]);
 
   // Video pause/play
   useEffect(() => {
