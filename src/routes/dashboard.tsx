@@ -415,25 +415,29 @@ function ImageDurationRow({ slug, initial }: { slug: string; initial: number }) 
     mutationFn: (n: number) => save({ data: { slug, seconds: n } }),
   });
   return (
-    <div className="mt-4 flex items-center gap-3 p-3 rounded-lg bg-black/40 border border-white/5">
-      <Clock className="w-4 h-4 text-soft shrink-0" />
-      <label className="text-sm text-soft">Image duration</label>
-      <input
-        type="number"
+    <div className="mt-4 p-3 rounded-lg bg-black/40 border border-white/5">
+      <div className="flex items-center gap-3 mb-3">
+        <Clock className="w-4 h-4 text-soft shrink-0" />
+        <label className="text-sm text-soft">Image duration</label>
+        <span className="ml-auto text-sm font-mono tabular-nums">{secs}s</span>
+      </div>
+      <Slider
         min={2}
-        max={120}
-        value={secs}
-        onChange={(e) => setSecs(Math.max(2, Math.min(120, Number(e.target.value) || 8)))}
-        className="w-20 bg-black border border-white/10 rounded px-2 py-1 text-sm"
+        max={60}
+        step={1}
+        value={[secs]}
+        onValueChange={(v) => setSecs(v[0] ?? secs)}
       />
-      <span className="text-xs text-soft">seconds (videos play in full)</span>
-      <button
-        className="tv-btn ml-auto"
-        disabled={m.isPending || secs === initial}
-        onClick={() => m.mutate(secs)}
-      >
-        {m.isPending ? "Saving…" : m.isSuccess && secs === (m.data?.seconds ?? secs) ? "Saved" : "Save"}
-      </button>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-xs text-soft">videos play in full</span>
+        <button
+          className="tv-btn"
+          disabled={m.isPending || secs === initial}
+          onClick={() => m.mutate(secs)}
+        >
+          {m.isPending ? "Saving…" : m.isSuccess && secs === (m.data?.seconds ?? secs) ? "Saved" : "Save"}
+        </button>
+      </div>
     </div>
   );
 }
