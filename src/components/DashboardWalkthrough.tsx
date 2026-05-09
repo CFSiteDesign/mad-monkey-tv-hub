@@ -173,7 +173,18 @@ function useTargetRect(selector: string | undefined): Rect | null {
       const el = document.querySelector(selector) as HTMLElement | null;
       if (!el) { setRect(null); return; }
       const r = el.getBoundingClientRect();
-      setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      setRect((prev) => {
+        if (
+          prev &&
+          prev.top === r.top &&
+          prev.left === r.left &&
+          prev.width === r.width &&
+          prev.height === r.height
+        ) {
+          return prev;
+        }
+        return { top: r.top, left: r.left, width: r.width, height: r.height };
+      });
     };
 
     const el = document.querySelector(selector) as HTMLElement | null;
