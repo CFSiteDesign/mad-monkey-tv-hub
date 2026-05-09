@@ -476,7 +476,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
         setProgress(`Uploading ${i}/${accepted.length}: ${file.name}`);
         const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
         const type = file.type.startsWith("video") || ext === "mp4" || ext === "mov" ? "video" : "image";
-        const init = await createUrl({ data: { slug, file_name: file.name } });
+        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: file.name } }));
         await uploadToStorage(init.path, init.token, file, (p) => setPct(p));
         await record({ data: {
           slug, file_url: init.publicUrl, file_name: file.name,
@@ -525,6 +525,29 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
       )}
     </div>
   );
+}
+
+type UploadInit = {
+  path: string;
+  token: string;
+  publicUrl: string;
+};
+
+function normalizeUploadInit(value: unknown): UploadInit {
+  const maybeWrapped = value as { data?: unknown; result?: unknown } | null;
+  const raw = ((maybeWrapped?.data ?? maybeWrapped?.result ?? value) || {}) as Record<string, unknown>;
+  const signedUrl = typeof raw.signedUrl === "string" ? raw.signedUrl : "";
+  const pathFromSignedUrl = signedUrl.match(/\/object\/upload\/sign\/tv-content\/([^?]+)/)?.[1];
+  const tokenFromSignedUrl = signedUrl ? new URL(signedUrl).searchParams.get("token") : null;
+  const path = typeof raw.path === "string" && raw.path ? raw.path : pathFromSignedUrl ? decodeURIComponent(pathFromSignedUrl) : "";
+  const token = typeof raw.token === "string" && raw.token ? raw.token : tokenFromSignedUrl ?? "";
+  const publicUrl = typeof raw.publicUrl === "string" ? raw.publicUrl : "";
+
+  if (!path || !token || !publicUrl) {
+    throw new Error("Upload could not start. Please refresh and try again.");
+  }
+
+  return { path, token, publicUrl };
 }
 
 async function uploadToStorage(
