@@ -258,8 +258,7 @@ function PropertyCard({
 }: { property: PropertyData; role: "global_marketing" | "gm"; hideCode?: boolean }) {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: ["tv-all"] });
-  const playUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/${property.slug}/play` : `/${property.slug}/play`;
+  const playUrl = `https://mad-monkey-tv-hub.lovable.app/${property.slug}/play`;
 
   return (
     <div className="tv-card p-6">
