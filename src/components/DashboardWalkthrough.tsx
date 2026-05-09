@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
  */
 
 type DemoKind = "fileDrop" | "drag" | null;
-type InteractiveKind = "fileDrop" | "drag";
+type InteractiveKind = "fileDrop" | "drag" | "slider";
 
 type StepCtx = {
   /** Trigger a demo animation overlay anchored to a selector. */
