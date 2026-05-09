@@ -839,6 +839,15 @@ function InteractiveRowDrag({
       <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]">
         {completed ? <Check className="w-6 h-6" /> : <GripVertical className="w-6 h-6" strokeWidth={2.5} />}
       </div>
+      {usingFallback && (
+        <div className="absolute inset-0 flex items-center gap-3 px-10 text-xs text-white/85">
+          <FileImage className="w-9 h-9 rounded-md bg-black/50 p-2" />
+          <div className="min-w-0">
+            <p className="truncate font-semibold">fake-demo-video.mp4</p>
+            <p className="text-white/55">Demo reorder item</p>
+          </div>
+        </div>
+      )}
       {!dragging && !completed && (
         <div
           className="absolute"
