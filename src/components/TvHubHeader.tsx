@@ -1,4 +1,5 @@
-import logo from "@/assets/mad-monkey-logo.png";
+import logo from "@/assets/TheoroXlogo.png";
+import madMonkey from "@/assets/mad-monkey-logo.png";
 import type { Session } from "@/lib/tv.functions";
 
 export function TvHubHeader({
@@ -17,6 +18,11 @@ export function TvHubHeader({
       </div>
       <div className="flex items-center gap-4">
         <span className="tv-pill">{pillText}</span>
+        <div className="h-10 w-10 rounded-full p-[2px] tv-gradient-bg">
+          <div className="h-full w-full rounded-full bg-black flex items-center justify-center overflow-hidden">
+            <img src={madMonkey} alt="Mad Monkey" className="h-7 w-7 object-contain" />
+          </div>
+        </div>
         <button
           onClick={onLogout}
           className="text-sm text-soft hover:text-white transition-colors"
