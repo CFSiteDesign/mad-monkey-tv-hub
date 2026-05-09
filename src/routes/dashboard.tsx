@@ -452,16 +452,30 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;
+    const allowedExt = ["mp4", "mov", "png", "jpg", "jpeg"];
+    const allowedMime = ["video/mp4", "video/quicktime", "image/png", "image/jpeg"];
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const f of Array.from(files)) {
+      const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+      const ok = allowedExt.includes(ext) || allowedMime.includes(f.type);
+      if (ok) accepted.push(f); else rejected.push(f.name);
+    }
+    if (rejected.length) {
+      alert(`Only MP4, MOV, PNG and JPEG are allowed.\nSkipped: ${rejected.join(", ")}`);
+    }
+    if (!accepted.length) return;
     setBusy(true);
-    setFileIndex({ current: 0, total: files.length });
+    setFileIndex({ current: 0, total: accepted.length });
     try {
       let i = 0;
-      for (const file of Array.from(files)) {
+      for (const file of accepted) {
         i++;
-        setFileIndex({ current: i, total: files.length });
+        setFileIndex({ current: i, total: accepted.length });
         setPct(0);
-        setProgress(`Uploading ${i}/${files.length}: ${file.name}`);
-        const type = file.type.startsWith("video") ? "video" : "image";
+        setProgress(`Uploading ${i}/${accepted.length}: ${file.name}`);
+        const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+        const type = file.type.startsWith("video") || ext === "mp4" || ext === "mov" ? "video" : "image";
         const init = await createUrl({ data: { slug, file_name: file.name } });
         await uploadToStorage(init.path, init.token, file, (p) => setPct(p));
         await record({ data: {
@@ -490,13 +504,14 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
       }}
     >
       <input
-        ref={inputRef} type="file" multiple accept="image/jpeg,image/png,video/mp4"
+        ref={inputRef} type="file" multiple
+        accept="image/jpeg,image/png,video/mp4,video/quicktime,.mp4,.mov,.png,.jpg,.jpeg"
         className="hidden"
         onChange={(e: ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
       />
       <UploadCloud className="w-8 h-8 mx-auto mb-2 text-soft" />
       <p className="text-sm">
-        {busy ? progress : <>Drop images or videos here or <span className="tv-gradient-text font-semibold">browse</span></>}
+        {busy ? progress : <>Drop MP4, MOV, PNG or JPEG here or <span className="tv-gradient-text font-semibold">browse</span></>}
       </p>
       {busy ? (
         <div className="mt-3 space-y-1" onClick={(e) => e.stopPropagation()}>
