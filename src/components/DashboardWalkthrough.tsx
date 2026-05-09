@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Sparkles, MousePointer2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
