@@ -775,7 +775,7 @@ function InteractiveRowDrag({
         const width = Math.min(520, viewportW - 36);
         const nextGeom = {
           r1: {
-            top: Math.min(Math.max(120, viewportH * 0.38), viewportH - 190),
+            top: Math.min(Math.max(320, viewportH * 0.6), viewportH - 150),
             left: Math.min(Math.max(18, viewportW / 2 - width / 2), viewportW - width - 18),
             width,
             height: 64,
