@@ -9,10 +9,11 @@ import {
   listPropertiesFn, createUploadUrlFn, recordUploadFn,
   deleteAssetFn, reorderAssetsFn, regenerateCodeFn,
   listPropertiesPublicFn, devLoginFn,
+  setImageDurationFn,
   type Session,
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
-import { Trash2, RefreshCw, Link2, GripVertical, FileVideo, UploadCloud } from "lucide-react";
+import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, ArrowUp, ArrowDown, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/dashboard")({
@@ -252,6 +253,7 @@ type Asset = {
 type PropertyData = {
   id: string; slug: string; name: string; country: string;
   access_code: string | null; coming_soon: boolean; assets: Asset[];
+  image_duration_seconds?: number;
 };
 
 function PropertyCard({
@@ -271,13 +273,21 @@ function PropertyCard({
 
       <UploadDropzone slug={property.slug} onDone={refresh} />
 
+      <ImageDurationRow
+        slug={property.slug}
+        initial={property.image_duration_seconds ?? 8}
+      />
+
       <div className="mt-5 space-y-2">
         {property.assets.length === 0 && (
           <p className="text-soft text-sm py-2">No content yet.</p>
         )}
-        {property.assets.map((a) => (
+        {property.assets.map((a, i) => (
           <AssetRow
             key={a.id} asset={a} role={role}
+            slug={property.slug}
+            ids={property.assets.map((x) => x.id)}
+            index={i}
             onChanged={refresh}
           />
         ))}
@@ -329,19 +339,52 @@ function PropertyCodeRow({ slug, initial }: { slug: string; initial: string }) {
 }
 
 function AssetRow({
-  asset, role, onChanged,
-}: { asset: Asset; role: "global_marketing" | "gm"; onChanged: () => void }) {
+  asset, role, onChanged, slug, ids, index,
+}: {
+  asset: Asset; role: "global_marketing" | "gm"; onChanged: () => void;
+  slug: string; ids: string[]; index: number;
+}) {
   const del = useServerFn(deleteAssetFn);
+  const reorder = useServerFn(reorderAssetsFn);
   const m = useMutation({
     mutationFn: () => del({ data: { id: asset.id } }),
     onSuccess: onChanged,
   });
+  const move = useMutation({
+    mutationFn: (dir: -1 | 1) => {
+      const next = [...ids];
+      const j = index + dir;
+      if (j < 0 || j >= next.length) return Promise.resolve({ ok: true });
+      [next[index], next[j]] = [next[j], next[index]];
+      return reorder({ data: { slug, ids: next } });
+    },
+    onSuccess: onChanged,
+  });
   const isImg = asset.file_type === "image";
+  const canMoveUp = index > 0;
+  const canMoveDown = index < ids.length - 1;
   return (
     <div className="flex items-center gap-3 p-2 rounded-lg bg-black/40 border border-white/5">
-      {role === "global_marketing" && (
-        <GripVertical className="w-4 h-4 text-soft shrink-0" />
-      )}
+      <div className="flex flex-col shrink-0">
+        <button
+          type="button"
+          disabled={!canMoveUp || move.isPending}
+          onClick={() => move.mutate(-1)}
+          className="text-soft hover:text-white disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+          title="Move up"
+        >
+          <ArrowUp className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          disabled={!canMoveDown || move.isPending}
+          onClick={() => move.mutate(1)}
+          className="text-soft hover:text-white disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
+          title="Move down"
+        >
+          <ArrowDown className="w-3.5 h-3.5" />
+        </button>
+      </div>
       <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center shrink-0 overflow-hidden">
         {isImg
           ? <img src={asset.file_url} className="w-full h-full object-cover" alt="" />
@@ -360,6 +403,36 @@ function AssetRow({
         title="Delete"
       >
         <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+function ImageDurationRow({ slug, initial }: { slug: string; initial: number }) {
+  const [secs, setSecs] = useState(initial);
+  const save = useServerFn(setImageDurationFn);
+  const m = useMutation({
+    mutationFn: (n: number) => save({ data: { slug, seconds: n } }),
+  });
+  return (
+    <div className="mt-4 flex items-center gap-3 p-3 rounded-lg bg-black/40 border border-white/5">
+      <Clock className="w-4 h-4 text-soft shrink-0" />
+      <label className="text-sm text-soft">Image duration</label>
+      <input
+        type="number"
+        min={2}
+        max={120}
+        value={secs}
+        onChange={(e) => setSecs(Math.max(2, Math.min(120, Number(e.target.value) || 8)))}
+        className="w-20 bg-black border border-white/10 rounded px-2 py-1 text-sm"
+      />
+      <span className="text-xs text-soft">seconds (videos play in full)</span>
+      <button
+        className="tv-btn ml-auto"
+        disabled={m.isPending || secs === initial}
+        onClick={() => m.mutate(secs)}
+      >
+        {m.isPending ? "Saving…" : m.isSuccess && secs === (m.data?.seconds ?? secs) ? "Saved" : "Save"}
       </button>
     </div>
   );

@@ -21,6 +21,7 @@ export type Database = {
           country: string
           created_at: string
           id: string
+          image_duration_seconds: number
           name: string
           slug: string
         }
@@ -30,6 +31,7 @@ export type Database = {
           country: string
           created_at?: string
           id?: string
+          image_duration_seconds?: number
           name: string
           slug: string
         }
@@ -39,6 +41,7 @@ export type Database = {
           country?: string
           created_at?: string
           id?: string
+          image_duration_seconds?: number
           name?: string
           slug?: string
         }

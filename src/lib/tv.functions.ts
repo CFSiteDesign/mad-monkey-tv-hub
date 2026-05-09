@@ -125,7 +125,7 @@ export const listPropertiesFn = createServerFn({ method: "GET" }).handler(async 
 
   const { data: props } = await supabaseAdmin
     .from("properties")
-    .select("id,slug,name,country,access_code,coming_soon")
+    .select("id,slug,name,country,access_code,coming_soon,image_duration_seconds")
     .order("country")
     .order("name");
   const orderedProps = sortKampotLast(props ?? []);
@@ -247,7 +247,8 @@ export const reorderAssetsFn = createServerFn({ method: "POST" })
   .inputValidator((d: { slug: string; ids: string[] }) => d)
   .handler(async ({ data }) => {
     const session = await resolveSession();
-    if (!session || session.role !== "global_marketing") {
+    if (!session) throw new Response("Unauthorized", { status: 401 });
+    if (session.role === "gm" && session.slug !== data.slug) {
       throw new Response("Forbidden", { status: 403 });
     }
     for (let i = 0; i < data.ids.length; i++) {
@@ -257,6 +258,25 @@ export const reorderAssetsFn = createServerFn({ method: "POST" })
         .eq("property_slug", data.slug);
     }
     return { ok: true };
+  });
+
+export const setImageDurationFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { slug: string; seconds: number }) => ({
+    slug: String(d.slug),
+    seconds: Math.max(2, Math.min(120, Math.floor(Number(d.seconds) || 8))),
+  }))
+  .handler(async ({ data }) => {
+    const session = await resolveSession();
+    if (!session) throw new Response("Unauthorized", { status: 401 });
+    if (session.role === "gm" && session.slug !== data.slug) {
+      throw new Response("Forbidden", { status: 403 });
+    }
+    const { error } = await supabaseAdmin
+      .from("properties")
+      .update({ image_duration_seconds: data.seconds })
+      .eq("slug", data.slug);
+    if (error) throw new Response(error.message, { status: 400 });
+    return { ok: true, seconds: data.seconds };
   });
 
 export const regenerateCodeFn = createServerFn({ method: "POST" })
@@ -285,7 +305,7 @@ export const getPlayDataFn = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const { data: prop } = await supabaseAdmin
       .from("properties")
-      .select("slug,name,country,coming_soon")
+      .select("slug,name,country,coming_soon,image_duration_seconds")
       .eq("slug", data.slug)
       .maybeSingle();
     if (!prop) return { property: null, assets: [] as any[] };
