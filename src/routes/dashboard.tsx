@@ -58,7 +58,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     <div className="min-h-screen bg-black px-4 py-12">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-12">
-          <img src={logo} alt="TheoroX" className="h-10 mx-auto mb-8" />
+          <img src={logo} alt="TheoroX" className="h-20 mx-auto mb-8" />
           <h1 className="text-5xl font-extrabold tracking-tight tv-gradient-underline mb-3">
             TV Hub
           </h1>
