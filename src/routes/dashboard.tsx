@@ -12,6 +12,7 @@ import {
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
 import { Trash2, RefreshCw, Link2, GripVertical, FileVideo, UploadCloud } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "TV Hub by TheoroX" }] }),
@@ -350,6 +351,8 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string>("");
+  const [pct, setPct] = useState(0);
+  const [fileIndex, setFileIndex] = useState({ current: 0, total: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
   const createUrl = useServerFn(createUploadUrlFn);
   const record = useServerFn(recordUploadFn);
@@ -357,19 +360,17 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;
     setBusy(true);
+    setFileIndex({ current: 0, total: files.length });
     try {
       let i = 0;
       for (const file of Array.from(files)) {
         i++;
+        setFileIndex({ current: i, total: files.length });
+        setPct(0);
         setProgress(`Uploading ${i}/${files.length}: ${file.name}`);
         const type = file.type.startsWith("video") ? "video" : "image";
         const init = await createUrl({ data: { slug, file_name: file.name } });
-        const put = await fetch(init.signedUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type || "application/octet-stream" },
-          body: file,
-        });
-        if (!put.ok) throw new Error(`Upload failed for ${file.name}`);
+        await uploadWithProgress(init.signedUrl, file, (p) => setPct(p));
         await record({ data: {
           slug, file_url: init.publicUrl, file_name: file.name,
           file_size: file.size, file_type: type,
@@ -379,7 +380,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
     } catch (e: any) {
       alert(e.message || "Upload failed");
     } finally {
-      setBusy(false); setProgress("");
+      setBusy(false); setProgress(""); setPct(0); setFileIndex({ current: 0, total: 0 });
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -404,9 +405,39 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
       <p className="text-sm">
         {busy ? progress : <>Drop JPEG / MP4 here or <span className="tv-gradient-text font-semibold">browse</span></>}
       </p>
-      <p className="text-xs text-soft mt-1">Goes live on the TV immediately.</p>
+      {busy ? (
+        <div className="mt-3 space-y-1" onClick={(e) => e.stopPropagation()}>
+          <Progress value={pct} />
+          <p className="text-xs text-soft">
+            {pct}% {fileIndex.total > 1 ? `· file ${fileIndex.current}/${fileIndex.total}` : ""}
+          </p>
+        </div>
+      ) : (
+        <p className="text-xs text-soft mt-1">Goes live on the TV immediately.</p>
+      )}
     </div>
   );
+}
+
+function uploadWithProgress(
+  url: string,
+  file: File,
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) { onProgress(100); resolve(); }
+      else reject(new Error(`Upload failed for ${file.name} (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error(`Upload failed for ${file.name}`));
+    xhr.send(file);
+  });
 }
 
 function formatBytes(n: number) {
