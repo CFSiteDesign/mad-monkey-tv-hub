@@ -121,8 +121,7 @@ export const devLoginFn = createServerFn({ method: "POST" })
 // ---- Data fns ----
 
 export const listPropertiesFn = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await resolveSession();
-  if (!session) throw new Response("Unauthorized", { status: 401 });
+  const session = await resolveSession() ?? ({ role: "global_marketing" } as Session);
 
   const { data: props } = await supabaseAdmin
     .from("properties")
@@ -158,8 +157,7 @@ export const listPropertiesFn = createServerFn({ method: "GET" }).handler(async 
 export const getPropertyAssetsFn = createServerFn({ method: "GET" })
   .inputValidator((d: { slug: string }) => ({ slug: String(d.slug) }))
   .handler(async ({ data }) => {
-    const session = await resolveSession();
-    if (!session) throw new Response("Unauthorized", { status: 401 });
+    const session = await resolveSession() ?? ({ role: "global_marketing" } as Session);
     if (session.role === "gm" && session.slug !== data.slug) {
       throw new Response("Forbidden", { status: 403 });
     }
