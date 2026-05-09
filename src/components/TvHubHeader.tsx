@@ -17,7 +17,6 @@ export function TvHubHeader({
         <h1 className="tv-gradient-underline text-2xl font-bold">TV Hub</h1>
       </div>
       <div className="flex items-center gap-4">
-        <span className="tv-pill">{pillText}</span>
         <div className="h-10 w-10 rounded-full p-[2px] tv-gradient-bg">
           <div className="h-full w-full rounded-full bg-black flex items-center justify-center overflow-hidden">
             <img src={madMonkey} alt="Mad Monkey" className="h-7 w-7 object-contain" />
