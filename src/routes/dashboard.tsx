@@ -8,7 +8,6 @@ import {
   getSessionFn, loginFn, logoutFn,
   listPropertiesFn, createUploadUrlFn, recordUploadFn,
   deleteAssetFn, reorderAssetsFn, regenerateCodeFn,
-  listPropertiesPublicFn, devLoginFn,
   setImageDurationFn,
   type Session,
 } from "@/lib/tv.functions";
@@ -31,47 +30,16 @@ export const Route = createFileRoute("/dashboard")({
 
 export function DashboardPage() {
   const fetchSession = useServerFn(getSessionFn);
-  const restoreDevSession = useServerFn(devLoginFn);
   const [localSession, setLocalSession] = useState<Session | null>(null);
-  const [isRestoringSession, setIsRestoringSession] = useState(false);
   const { data: session, isLoading, refetch } = useQuery({
     queryKey: ["tv-session"],
     queryFn: () => fetchSession(),
     staleTime: 60_000,
   });
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const savedTarget = params.get("view") || window.localStorage.getItem(DASHBOARD_AUTH_KEY);
-    if (!savedTarget) return;
-    let cancelled = false;
-    setIsRestoringSession(true);
-    restoreDevSession({ data: { target: savedTarget } })
-      .then((res) => {
-        if (cancelled) return;
-        if (!res.ok) {
-          window.localStorage.removeItem(DASHBOARD_AUTH_KEY);
-          window.history.replaceState(null, "", "/dashboard");
-          setLocalSession(null);
-          return;
-        }
-        window.localStorage.setItem(DASHBOARD_AUTH_KEY, savedTarget);
-        setLocalSession(
-          savedTarget === "__global__"
-            ? { role: "global_marketing" }
-            : { role: "gm", slug: savedTarget, name: "", country: "" }
-        );
-        refetch();
-      })
-      .finally(() => {
-        if (!cancelled) setIsRestoringSession(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
-
   const activeSession = localSession ?? session;
 
-  if ((isLoading || isRestoringSession) && !activeSession) {
+  if (isLoading && !activeSession) {
     return <div className="min-h-screen bg-black flex items-center justify-center text-soft">Loading…</div>;
   }
   if (!activeSession) return <LoginScreen onLoggedIn={setLocalSession} />;
@@ -83,79 +51,68 @@ export function DashboardPage() {
   }} />;
 }
 
-// ---------- Dev Picker (no login) ----------
+// ---------- Login ----------
 
 function LoginScreen({ onLoggedIn }: { onLoggedIn: (session: Session) => void }) {
-  const fetchProps = useServerFn(listPropertiesPublicFn);
-  const devLogin = useServerFn(devLoginFn);
-  const { data: props, isLoading } = useQuery({
-    queryKey: ["tv-picker"],
-    queryFn: () => fetchProps(),
-  });
-  const [busy, setBusy] = useState<string | null>(null);
+  const login = useServerFn(loginFn);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function pick(target: string) {
-    setBusy(target);
-    const res = await devLogin({ data: { target } });
-    if (res.ok) {
-      window.localStorage.setItem(DASHBOARD_AUTH_KEY, target);
-      window.history.replaceState(null, "", `/dashboard?view=${encodeURIComponent(target)}`);
-      onLoggedIn(
-        target === "__global__"
-          ? { role: "global_marketing" }
-          : { role: "gm", slug: target, name: "", country: "" }
-      );
-      return;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await login({ data: { code: trimmed } });
+      if (!res.ok) {
+        setError(res.error || "Invalid access code");
+        setBusy(false);
+        return;
+      }
+      window.localStorage.setItem(DASHBOARD_AUTH_KEY, trimmed);
+      onLoggedIn(res.session);
+    } catch {
+      setError("Login failed. Please try again.");
+      setBusy(false);
     }
-    setBusy(null);
   }
 
-  const grouped: Record<string, NonNullable<typeof props>> = {};
-  for (const p of props ?? []) (grouped[p.country] ||= []).push(p);
-
   return (
-    <div className="min-h-screen bg-black px-4 py-12">
-      <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-12">
+    <div className="min-h-screen bg-black px-4 py-12 flex items-center justify-center">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-10">
           <img src={logo} alt="TheoroX" className="h-20 mx-auto mb-8" />
           <h1 className="text-5xl font-extrabold tracking-tight tv-gradient-underline mb-3">
             TV Hub
           </h1>
-          <p className="text-soft">Pick a view (dev mode — no login)</p>
+          <p className="text-soft">Enter your access code to continue</p>
         </div>
 
-        <button
-          onClick={() => pick("__global__")}
-          disabled={busy === "__global__"}
-          className="tv-btn-solid w-full mb-10 py-4 text-lg"
-        >
-          {busy === "__global__" ? "Entering…" : "Enter as Global Marketing"}
-        </button>
-
-        {isLoading && <p className="text-soft text-center">Loading…</p>}
-
-        <div className="space-y-8">
-          {Object.entries(grouped).map(([country, list]) => (
-            <section key={country}>
-              <h2 className="country-heading mb-4">{country}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {list.map((p) => (
-                  <button
-                    key={p.slug}
-                    disabled={p.coming_soon || busy === p.slug}
-                    onClick={() => pick(p.slug)}
-                    className="tv-card p-4 text-left hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <p className="font-bold text-lg">{p.name}</p>
-                    <p className="text-xs text-soft mt-1">
-                      {p.coming_soon ? "Coming soon" : busy === p.slug ? "Entering…" : "Enter as GM"}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <form onSubmit={handleSubmit} className="tv-card p-6 space-y-4">
+          <label className="block">
+            <span className="text-sm text-soft">Access code</span>
+            <input
+              type="password"
+              autoFocus
+              autoComplete="off"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="mt-2 w-full bg-black/40 border border-white/10 rounded-md px-4 py-3 text-lg tracking-wider focus:outline-none focus:border-white/40"
+              placeholder="Enter code"
+            />
+          </label>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <button
+            type="submit"
+            disabled={busy || !code.trim()}
+            className="tv-btn-solid w-full py-3 text-lg disabled:opacity-50"
+          >
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
       </div>
     </div>
   );
