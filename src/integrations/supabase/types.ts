@@ -14,10 +14,116 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      properties: {
+        Row: {
+          access_code: string
+          coming_soon: boolean
+          country: string
+          created_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          access_code: string
+          coming_soon?: boolean
+          country: string
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          access_code?: string
+          coming_soon?: boolean
+          country?: string
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
+      tv_assets: {
+        Row: {
+          created_at: string
+          display_order: number
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id: string
+          property_slug: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          file_name: string
+          file_size?: number
+          file_type: string
+          file_url: string
+          id?: string
+          property_slug: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          property_slug?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tv_assets_property_slug_fkey"
+            columns: ["property_slug"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "tv_assets_property_slug_fkey"
+            columns: ["property_slug"]
+            isOneToOne: false
+            referencedRelation: "properties_public"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      properties_public: {
+        Row: {
+          coming_soon: boolean | null
+          country: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+          slug: string | null
+        }
+        Insert: {
+          coming_soon?: boolean | null
+          country?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          slug?: string | null
+        }
+        Update: {
+          coming_soon?: boolean | null
+          country?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          slug?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
