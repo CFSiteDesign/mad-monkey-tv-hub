@@ -44,7 +44,7 @@ export const loginFn = createServerFn({ method: "POST" })
 
     if (code === defaultAdminPassword()) {
       setCookie(COOKIE_NAME, code, {
-        httpOnly: true, secure: true, sameSite: "lax",
+        httpOnly: true, secure: true, sameSite: "none",
         path: "/", maxAge: COOKIE_MAX_AGE,
       });
       return { ok: true as const, session: { role: "global_marketing" } as Session };
@@ -61,7 +61,7 @@ export const loginFn = createServerFn({ method: "POST" })
     }
 
     setCookie(COOKIE_NAME, code, {
-      httpOnly: true, secure: true, sameSite: "lax",
+      httpOnly: true, secure: true, sameSite: "none",
       path: "/", maxAge: COOKIE_MAX_AGE,
     });
     return {
@@ -91,7 +91,7 @@ export const devLoginFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (data.target === "__global__") {
       setCookie(COOKIE_NAME, defaultAdminPassword(), {
-        httpOnly: true, secure: true, sameSite: "lax",
+        httpOnly: true, secure: true, sameSite: "none",
         path: "/", maxAge: COOKIE_MAX_AGE,
       });
       return { ok: true as const };
@@ -103,7 +103,7 @@ export const devLoginFn = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!prop || prop.coming_soon) return { ok: false as const, error: "Not available" };
     setCookie(COOKIE_NAME, prop.access_code, {
-      httpOnly: true, secure: true, sameSite: "lax",
+      httpOnly: true, secure: true, sameSite: "none",
       path: "/", maxAge: COOKIE_MAX_AGE,
     });
     return { ok: true as const };
