@@ -325,7 +325,7 @@ function PropertyCodeRow({ slug, initial }: { slug: string; initial: string }) {
   const [code, setCode] = useState(initial);
   const regen = useServerFn(regenerateCodeFn);
   const m = useMutation({
-    mutationFn: () => regen({ data: { slug } }),
+    mutationFn: () => regen({ data: { slug, auth_token: getDashboardAuthToken() } }),
     onSuccess: (res) => setCode(res.access_code),
   });
   return (
@@ -354,7 +354,7 @@ function AssetRow({
   const del = useServerFn(deleteAssetFn);
   const reorder = useServerFn(reorderAssetsFn);
   const m = useMutation({
-    mutationFn: () => del({ data: { id: asset.id } }),
+    mutationFn: () => del({ data: { id: asset.id, auth_token: getDashboardAuthToken() } }),
     onSuccess: onChanged,
   });
   const move = useMutation({
@@ -363,7 +363,7 @@ function AssetRow({
       const j = index + dir;
       if (j < 0 || j >= next.length) return Promise.resolve({ ok: true });
       [next[index], next[j]] = [next[j], next[index]];
-      return reorder({ data: { slug, ids: next } });
+      return reorder({ data: { slug, ids: next, auth_token: getDashboardAuthToken() } });
     },
     onSuccess: onChanged,
   });
@@ -419,7 +419,7 @@ function ImageDurationRow({ slug, initial }: { slug: string; initial: number }) 
   const [secs, setSecs] = useState(initial);
   const save = useServerFn(setImageDurationFn);
   const m = useMutation({
-    mutationFn: (n: number) => save({ data: { slug, seconds: n } }),
+    mutationFn: (n: number) => save({ data: { slug, seconds: n, auth_token: getDashboardAuthToken() } }),
   });
   return (
     <div className="mt-4 p-3 rounded-lg bg-black/40 border border-white/5">
