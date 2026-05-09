@@ -361,7 +361,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] pointer-events-none">
+    <div className="fixed inset-0 z-[60] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
       {/* Dimmed overlay with spotlight cutout */}
       {spot ? (
         <>
@@ -471,6 +471,17 @@ export function DashboardWalkthrough({ locationKey, role }: {
       })()}
 
       {/* Interactive: drag a ghost file into the upload zone */}
+      {current.interactive === "fileDrop" && (
+        !spot && (
+          <div
+            className="absolute rounded-xl border-2 border-dashed border-white/70 bg-white/10 backdrop-blur-sm pointer-events-none flex items-center justify-center text-xs font-semibold text-white/85"
+            style={fallbackInteractiveTarget}
+          >
+            Drop the fake demo file here
+          </div>
+        )
+      )}
+
       {current.interactive === "fileDrop" && (
         <InteractiveFileDrop
           targetRect={spot ?? fallbackInteractiveTarget}
