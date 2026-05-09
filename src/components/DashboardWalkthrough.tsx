@@ -10,9 +10,13 @@ import { Button } from "@/components/ui/button";
  *   - show a hint pill near the pointer
  *   - on Next, run an `action` that actually performs the task on the page
  *     (clicks, toggles) or plays a demo animation (faux file drop, faux drag).
+ *   - or be `interactive`: the user must perform the gesture themselves
+ *     (drag a ghost file into the upload zone, drag a ghost row to reorder)
+ *     before the tour advances.
  */
 
 type DemoKind = "fileDrop" | "drag" | null;
+type InteractiveKind = "fileDrop" | "drag";
 
 type StepCtx = {
   /** Trigger a demo animation overlay anchored to a selector. */
@@ -32,6 +36,8 @@ type Step = {
   nextLabel?: string;
   /** Action performed when the user clicks Next. Runs before advancing. */
   action?: (ctx: StepCtx) => Promise<void> | void;
+  /** When set, the user must complete the gesture themselves to advance. */
+  interactive?: InteractiveKind;
 };
 
 const GLOBAL_STEPS: Step[] = [
@@ -54,23 +60,17 @@ const GLOBAL_STEPS: Step[] = [
   },
   {
     title: "Upload images and videos",
-    body: "Drop MP4, MOV, PNG or JPEG files here — or click to browse. Watch this demo file land in the zone.",
+    body: "Drop MP4, MOV, PNG or JPEG files here — or click to browse. Try it: drag the demo file into the highlighted zone.",
     selector: '[data-tour="upload"]',
     hint: "Drop files here",
-    nextLabel: "Show me",
-    action: async ({ playDemo }) => {
-      await playDemo("fileDrop", '[data-tour="upload"]');
-    },
+    interactive: "fileDrop",
   },
   {
     title: "Reorder with drag and drop",
-    body: "Grab any item by its handle and drag it where you want. Watch — I'll demo the gesture.",
+    body: "Grab the highlighted item and drag it down past the next row to reorder. Give it a try.",
     selector: '[data-tour="reorder"]',
-    hint: "Drag to reorder",
-    nextLabel: "Show me",
-    action: async ({ playDemo }) => {
-      await playDemo("drag", '[data-tour="reorder"]');
-    },
+    hint: "Drag down to reorder",
+    interactive: "drag",
   },
   {
     title: "Compress videos for TV",
@@ -108,23 +108,17 @@ const GM_STEPS: Step[] = [
   },
   {
     title: "Upload your media",
-    body: "Drop MP4, MOV, PNG or JPEG here or click to browse. Watch this demo file land in.",
+    body: "Drop MP4, MOV, PNG or JPEG here or click to browse. Try it: drag the demo file into the highlighted zone.",
     selector: '[data-tour="upload"]',
     hint: "Drop files here",
-    nextLabel: "Show me",
-    action: async ({ playDemo }) => {
-      await playDemo("fileDrop", '[data-tour="upload"]');
-    },
+    interactive: "fileDrop",
   },
   {
     title: "Reorder by drag and drop",
-    body: "Grab the handle on any item and drag it to change playback order. I'll demo the gesture.",
+    body: "Grab the highlighted item and drag it down past the next row. Give it a try.",
     selector: '[data-tour="reorder"]',
-    hint: "Drag to reorder",
-    nextLabel: "Show me",
-    action: async ({ playDemo }) => {
-      await playDemo("drag", '[data-tour="reorder"]');
-    },
+    hint: "Drag down to reorder",
+    interactive: "drag",
   },
   {
     title: "Image duration",
