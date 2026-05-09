@@ -318,7 +318,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
       }
     : null;
   const fallbackInteractiveTarget: Rect = {
-    top: Math.min(Math.max(120, vh * 0.34), vh - 220),
+    top: Math.min(Math.max(280, vh * 0.56), vh - 220),
     left: Math.min(Math.max(18, vw / 2 - 240), vw - 498),
     width: Math.min(480, vw - 36),
     height: 150,
@@ -351,6 +351,13 @@ export function DashboardWalkthrough({ locationKey, role }: {
           left: spot.left + spot.width / 2 - 14,
           transform: "rotate(180deg)",
         };
+  } else if (current.interactive) {
+    tooltipStyle = {
+      top: 24,
+      left: "50%",
+      width: TOOLTIP_W,
+      transform: "translateX(-50%)",
+    };
   } else {
     tooltipStyle = {
       top: "50%",
