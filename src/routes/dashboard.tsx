@@ -487,11 +487,12 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
         setProgress(`Uploading ${i}/${accepted.length}: ${file.name}`);
         const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
         const type = file.type.startsWith("video") || ext === "mp4" || ext === "mov" ? "video" : "image";
-        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: file.name } }));
+        const auth_token = getDashboardAuthToken();
+        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: file.name, auth_token } }));
         await uploadToStorage(init.path, init.token, file, (p) => setPct(p));
         await record({ data: {
           slug, file_url: init.publicUrl, file_name: file.name,
-          file_size: file.size, file_type: type,
+          file_size: file.size, file_type: type, auth_token,
         }});
       }
       onDone();
@@ -548,8 +549,9 @@ function normalizeUploadInit(value: unknown): UploadInit {
   const maybeWrapped = value as { data?: unknown; result?: unknown } | null;
   const raw = ((maybeWrapped?.data ?? maybeWrapped?.result ?? value) || {}) as Record<string, unknown>;
   const signedUrl = typeof raw.signedUrl === "string" ? raw.signedUrl : "";
-  const pathFromSignedUrl = signedUrl.match(/\/object\/upload\/sign\/tv-content\/([^?]+)/)?.[1];
-  const tokenFromSignedUrl = signedUrl ? new URL(signedUrl).searchParams.get("token") : null;
+  const pathFromSignedUrl = signedUrl.match(/\/object\/upload\/sign\/tv-content\/([^?]+)/)?.[1]
+    ?? signedUrl.match(/\/object\/sign\/tv-content\/([^?]+)/)?.[1];
+  const tokenFromSignedUrl = signedUrl ? new URL(signedUrl, window.location.origin).searchParams.get("token") : null;
   const path = typeof raw.path === "string" && raw.path ? raw.path : pathFromSignedUrl ? decodeURIComponent(pathFromSignedUrl) : "";
   const token = typeof raw.token === "string" && raw.token ? raw.token : tokenFromSignedUrl ?? "";
   const publicUrl = typeof raw.publicUrl === "string" ? raw.publicUrl : "";
