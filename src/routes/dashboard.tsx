@@ -15,6 +15,7 @@ import {
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
 import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, ArrowUp, ArrowDown, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Slider } from "@/components/ui/slider";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "TV Hub by TheoroX" }] }),
