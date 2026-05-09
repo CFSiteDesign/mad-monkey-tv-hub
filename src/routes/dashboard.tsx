@@ -218,6 +218,24 @@ function ComingSoonCard({ name, country }: { name: string; country: string }) {
   );
 }
 
+const STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+
+function StorageBar({ used }: { used: number }) {
+  const pct = Math.min(100, (used / STORAGE_LIMIT_BYTES) * 100);
+  const warn = pct >= 80;
+  return (
+    <div className="mt-2 w-full max-w-xs">
+      <div className="flex items-center justify-between text-[11px] text-soft mb-1">
+        <span>Storage</span>
+        <span className={warn ? "text-amber-400" : ""}>
+          {formatBytes(used)} / 10 GB
+        </span>
+      </div>
+      <Progress value={pct} className="h-1.5" />
+    </div>
+  );
+}
+
 // ---------- GM View ----------
 
 function GmView({ session }: { session: Extract<Session, { role: "gm" }> }) {
