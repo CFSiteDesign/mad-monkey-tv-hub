@@ -4,7 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Pause, Play, Volume2, VolumeX, Heart } from "lucide-react";
 import { getPlayDataFn } from "@/lib/tv.functions";
-import { cacheMediaFiles, registerMediaCacheWorker, type MediaCacheStatus } from "@/lib/tv-media-cache";
+import {
+  cacheMediaFiles,
+  registerMediaCacheWorker,
+  type MediaCacheStatus,
+} from "@/lib/tv-media-cache";
 
 export const Route = createFileRoute("/$slug/play")({
   head: () => ({ meta: [{ title: "Mad Monkey TV" }] }),
@@ -42,12 +46,22 @@ function PlayPage() {
   return <Player assets={data.assets} imageSeconds={seconds} />;
 }
 
-function Player({ assets, imageSeconds }: { assets: { id: string; file_url: string; file_type: string }[]; imageSeconds: number }) {
+function Player({
+  assets,
+  imageSeconds,
+}: {
+  assets: { id: string; file_url: string; file_type: string }[];
+  imageSeconds: number;
+}) {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
   const [showControls, setShowControls] = useState(false);
-  const [cacheStatus, setCacheStatus] = useState<MediaCacheStatus>({ total: assets.length, cached: 0, active: true });
+  const [cacheStatus, setCacheStatus] = useState<MediaCacheStatus>({
+    total: assets.length,
+    cached: 0,
+    active: true,
+  });
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideTimer = useRef<number | undefined>(undefined);
   const advanceTimer = useRef<number | undefined>(undefined);
@@ -82,13 +96,16 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
     // Only preload images — preloading a full video on a Fire Stick chews
     // memory hard and causes the device to freeze. The <video> element
     // itself will buffer when it mounts.
-    const pre = window.setTimeout(() => {
-      if (next.file_type === "image") {
-        const img = new Image();
-        img.src = next.file_url;
-        preloadRef.current = img;
-      }
-    }, Math.max(500, ms - 1000));
+    const pre = window.setTimeout(
+      () => {
+        if (next.file_type === "image") {
+          const img = new Image();
+          img.src = next.file_url;
+          preloadRef.current = img;
+        }
+      },
+      Math.max(500, ms - 1000),
+    );
     return () => {
       clearTimeout(advanceTimer.current);
       clearTimeout(pre);
@@ -101,7 +118,8 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
     const v = videoRef.current;
     if (!v) return;
     v.muted = muted;
-    if (paused) v.pause(); else v.play().catch(() => {});
+    if (paused) v.pause();
+    else v.play().catch(() => {});
   }, [paused, muted, current.id]);
 
   // Safety net: if a video stalls or fails, move on after a generous timeout
@@ -124,7 +142,11 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.code === "Space") { e.preventDefault(); setPaused((p) => !p); reveal(); }
+      if (e.code === "Space") {
+        e.preventDefault();
+        setPaused((p) => !p);
+        reveal();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -149,11 +171,15 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
           key={current.id}
           ref={videoRef}
           src={current.file_url}
-          autoPlay muted={muted} playsInline
+          autoPlay
+          muted={muted}
+          playsInline
           className="w-full h-full object-contain bg-black"
           onEnded={advance}
           onError={advance}
-          onCanPlay={() => { videoRef.current?.play().catch(() => {}); }}
+          onCanPlay={() => {
+            videoRef.current?.play().catch(() => {});
+          }}
         />
       )}
 
@@ -163,13 +189,21 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
         }`}
       >
         <button
-          onClick={(e) => { e.stopPropagation(); setPaused((p) => !p); reveal(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setPaused((p) => !p);
+            reveal();
+          }}
           className="bg-white/10 hover:bg-white/20 backdrop-blur-md p-4 rounded-full text-white"
         >
           {paused ? <Play className="w-6 h-6" /> : <Pause className="w-6 h-6" />}
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); reveal(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMuted((m) => !m);
+            reveal();
+          }}
           className="bg-white/10 hover:bg-white/20 backdrop-blur-md p-4 rounded-full text-white"
         >
           {muted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
@@ -199,10 +233,7 @@ function NotFound() {
     <div className="fixed inset-0 bg-black flex flex-col items-center justify-center px-6 text-center">
       <h1 className="text-5xl font-bold text-white mb-4">Not found</h1>
       <p className="text-white/60 mb-8">This screen isn't set up yet.</p>
-      <a
-        href="https://madmonkeyhostels.com"
-        className="text-white underline underline-offset-4"
-      >
+      <a href="https://madmonkeyhostels.com" className="text-white underline underline-offset-4">
         Visit madmonkeyhostels.com
       </a>
     </div>
