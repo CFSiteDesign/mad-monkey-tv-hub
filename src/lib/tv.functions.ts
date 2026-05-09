@@ -10,7 +10,7 @@ const COOKIE_NAME = "tvhub_session";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 function defaultAdminPassword() {
-  return process.env.ADMIN_PASSWORD || "MADMONKEY-GLOBAL-2025";
+  return process.env.ADMIN_PASSWORD || "9";
 }
 
 export type Session =
