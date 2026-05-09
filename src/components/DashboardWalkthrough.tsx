@@ -765,15 +765,19 @@ function InteractiveRowDrag({
       if (!row1) {
         const viewportW = window.innerWidth;
         const viewportH = window.innerHeight;
-        setGeom({
+        const width = Math.min(520, viewportW - 36);
+        const nextGeom = {
           r1: {
             top: Math.min(Math.max(120, viewportH * 0.38), viewportH - 190),
-            left: Math.min(Math.max(18, viewportW / 2 - 260), viewportW - 538),
-            width: Math.min(520, viewportW - 36),
+            left: Math.min(Math.max(18, viewportW / 2 - width / 2), viewportW - width - 18),
+            width,
             height: 64,
           },
           threshold: 72,
           usingFallback: true,
+        };
+        setGeom({
+          ...nextGeom,
         });
         return;
       }
