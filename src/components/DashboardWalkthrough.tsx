@@ -317,6 +317,12 @@ export function DashboardWalkthrough({ locationKey, role }: {
         height: Math.min(vh - 16, rect.height + PADDING * 2),
       }
     : null;
+  const fallbackInteractiveTarget: Rect = {
+    top: Math.min(Math.max(120, vh * 0.34), vh - 220),
+    left: Math.min(Math.max(18, vw / 2 - 240), vw - 498),
+    width: Math.min(480, vw - 36),
+    height: 150,
+  };
 
   const TOOLTIP_W = 360;
   const TOOLTIP_H_EST = 240;
@@ -465,9 +471,9 @@ export function DashboardWalkthrough({ locationKey, role }: {
       })()}
 
       {/* Interactive: drag a ghost file into the upload zone */}
-      {current.interactive === "fileDrop" && spot && (
+      {current.interactive === "fileDrop" && (
         <InteractiveFileDrop
-          targetRect={spot}
+          targetRect={spot ?? fallbackInteractiveTarget}
           completed={completed}
           onSuccess={onInteractiveSuccess}
         />
