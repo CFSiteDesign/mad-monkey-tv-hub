@@ -392,7 +392,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
         />
       )}
 
-      {/* Demo animations */}
+      {/* Demo animations (used by `action` steps) */}
       {demo?.kind === "fileDrop" && (
         <div
           className="absolute pointer-events-none flex items-center justify-center"
@@ -446,6 +446,23 @@ export function DashboardWalkthrough({ locationKey, role }: {
           </div>
         );
       })()}
+
+      {/* Interactive: drag a ghost file into the upload zone */}
+      {current.interactive === "fileDrop" && spot && (
+        <InteractiveFileDrop
+          targetRect={spot}
+          completed={completed}
+          onSuccess={onInteractiveSuccess}
+        />
+      )}
+
+      {/* Interactive: drag a ghost row down to reorder */}
+      {current.interactive === "drag" && (
+        <InteractiveRowDrag
+          completed={completed}
+          onSuccess={onInteractiveSuccess}
+        />
+      )}
 
       {/* Tooltip card */}
       <div
