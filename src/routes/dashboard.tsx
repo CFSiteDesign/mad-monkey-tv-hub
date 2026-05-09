@@ -13,7 +13,7 @@ import {
   type Session,
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
-import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, ArrowUp, ArrowDown, Clock } from "lucide-react";
+import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, GripVertical, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 
@@ -289,15 +289,14 @@ function PropertyCard({
         {property.assets.length === 0 && (
           <p className="text-soft text-sm py-2">No content yet.</p>
         )}
-        {property.assets.map((a, i) => (
-          <AssetRow
-            key={a.id} asset={a} role={role}
+        {property.assets.length > 0 && (
+          <AssetList
+            assets={property.assets}
             slug={property.slug}
-            ids={property.assets.map((x) => x.id)}
-            index={i}
+            role={role}
             onChanged={refresh}
           />
-        ))}
+        )}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -345,73 +344,114 @@ function PropertyCodeRow({ slug, initial }: { slug: string; initial: string }) {
   );
 }
 
-function AssetRow({
-  asset, role, onChanged, slug, ids, index,
+function AssetList({
+  assets, slug, onChanged,
 }: {
-  asset: Asset; role: "global_marketing" | "gm"; onChanged: () => void;
-  slug: string; ids: string[]; index: number;
+  assets: Asset[]; slug: string; role: "global_marketing" | "gm"; onChanged: () => void;
 }) {
   const del = useServerFn(deleteAssetFn);
   const reorder = useServerFn(reorderAssetsFn);
-  const m = useMutation({
-    mutationFn: () => del({ data: { id: asset.id, auth_token: getDashboardAuthToken() } }),
+  const [order, setOrder] = useState<Asset[]>(assets);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+
+  // Sync local order when server data changes (and we're not mid-drag)
+  const serverKey = assets.map((a) => a.id).join(",");
+  useEffect(() => {
+    if (dragId === null) setOrder(assets);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverKey]);
+
+  const persist = useMutation({
+    mutationFn: (ids: string[]) =>
+      reorder({ data: { slug, ids, auth_token: getDashboardAuthToken() } }),
+    onSuccess: onChanged,
+    onError: () => setOrder(assets),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (id: string) => del({ data: { id, auth_token: getDashboardAuthToken() } }),
     onSuccess: onChanged,
   });
-  const move = useMutation({
-    mutationFn: (dir: -1 | 1) => {
-      const next = [...ids];
-      const j = index + dir;
-      if (j < 0 || j >= next.length) return Promise.resolve({ ok: true });
-      [next[index], next[j]] = [next[j], next[index]];
-      return reorder({ data: { slug, ids: next, auth_token: getDashboardAuthToken() } });
-    },
-    onSuccess: onChanged,
-  });
-  const isImg = asset.file_type === "image";
-  const canMoveUp = index > 0;
-  const canMoveDown = index < ids.length - 1;
+
+  function moveItem(fromId: string, toId: string) {
+    if (fromId === toId) return;
+    const next = [...order];
+    const from = next.findIndex((a) => a.id === fromId);
+    const to = next.findIndex((a) => a.id === toId);
+    if (from < 0 || to < 0) return;
+    const [it] = next.splice(from, 1);
+    next.splice(to, 0, it);
+    setOrder(next);
+  }
+
+  function onDrop() {
+    setDragId(null);
+    setOverId(null);
+    const ids = order.map((a) => a.id);
+    if (ids.join(",") !== assets.map((a) => a.id).join(",")) {
+      persist.mutate(ids);
+    }
+  }
+
   return (
-    <div className="flex items-center gap-3 p-2 rounded-lg bg-black/40 border border-white/5">
-      <div className="flex flex-col shrink-0">
-        <button
-          type="button"
-          disabled={!canMoveUp || move.isPending}
-          onClick={() => move.mutate(-1)}
-          className="text-soft hover:text-white disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
-          title="Move up"
-        >
-          <ArrowUp className="w-3.5 h-3.5" />
-        </button>
-        <button
-          type="button"
-          disabled={!canMoveDown || move.isPending}
-          onClick={() => move.mutate(1)}
-          className="text-soft hover:text-white disabled:opacity-20 disabled:cursor-not-allowed p-0.5"
-          title="Move down"
-        >
-          <ArrowDown className="w-3.5 h-3.5" />
-        </button>
-      </div>
-      <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center shrink-0 overflow-hidden">
-        {isImg
-          ? <img src={asset.file_url} className="w-full h-full object-cover" alt="" />
-          : <FileVideo className="w-5 h-5 text-soft" />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="truncate text-sm">{asset.file_name}</p>
-        <p className="text-xs text-soft">{formatBytes(asset.file_size)}</p>
-      </div>
-      <span className="tv-pill text-[10px] !py-0.5 !px-2">
-        {asset.uploaded_by === "gm" ? "GM" : "Global"}
-      </span>
-      <button
-        className="text-soft hover:text-red-400 transition-colors p-2"
-        onClick={() => m.mutate()}
-        title="Delete"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </div>
+    <>
+      {order.map((asset) => {
+        const isImg = asset.file_type === "image";
+        const isDragging = dragId === asset.id;
+        const isOver = overId === asset.id && dragId !== asset.id;
+        return (
+          <div
+            key={asset.id}
+            draggable
+            onDragStart={(e) => {
+              setDragId(asset.id);
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", asset.id);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setOverId(asset.id);
+              if (dragId && dragId !== asset.id) moveItem(dragId, asset.id);
+            }}
+            onDragEnd={() => { setDragId(null); setOverId(null); }}
+            onDrop={(e) => { e.preventDefault(); onDrop(); }}
+            className={`flex items-center gap-3 p-2 rounded-lg bg-black/40 border transition-all ${
+              isDragging ? "opacity-40 border-white/30" : isOver ? "border-white/40" : "border-white/5"
+            }`}
+          >
+            <button
+              type="button"
+              className="text-soft hover:text-white cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none"
+              title="Drag to reorder"
+              aria-label="Drag to reorder"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+            <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center shrink-0 overflow-hidden">
+              {isImg
+                ? <img src={asset.file_url} className="w-full h-full object-cover" alt="" />
+                : <FileVideo className="w-5 h-5 text-soft" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="truncate text-sm">{asset.file_name}</p>
+              <p className="text-xs text-soft">{formatBytes(asset.file_size)}</p>
+            </div>
+            <span className="tv-pill text-[10px] !py-0.5 !px-2">
+              {asset.uploaded_by === "gm" ? "GM" : "Global"}
+            </span>
+            <button
+              className="text-soft hover:text-red-400 transition-colors p-2"
+              onClick={() => removeMut.mutate(asset.id)}
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })}
+    </>
   );
 }
 
