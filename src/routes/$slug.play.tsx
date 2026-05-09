@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Pause, Play, Volume2, VolumeX, Heart } from "lucide-react";
 import { getPlayDataFn } from "@/lib/tv.functions";
 
@@ -17,6 +17,20 @@ function PlayPage() {
     queryKey: ["play", slug],
     queryFn: () => fetchPlay({ data: { slug } }),
     refetchInterval: 60_000,
+    // Don't churn the assets array (and restart the slideshow) if nothing
+    // actually changed. Compare a stable signature.
+    structuralSharing: (oldData, newData) => {
+      try {
+        const sig = (d: any) =>
+          JSON.stringify({
+            d: d?.property?.image_duration_seconds,
+            a: (d?.assets ?? []).map((x: any) => [x.id, x.file_url, x.display_order, x.file_type]),
+          });
+        return sig(oldData) === sig(newData) ? (oldData as any) : (newData as any);
+      } catch {
+        return newData as any;
+      }
+    },
   });
 
   if (isLoading) return <div className="fixed inset-0 bg-black" />;
@@ -37,14 +51,16 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
   const advanceTimer = useRef<number | undefined>(undefined);
   const preloadRef = useRef<HTMLImageElement | HTMLVideoElement | null>(null);
 
-  const current = assets[idx % assets.length];
-  const next = assets[(idx + 1) % assets.length];
+  const safeIdx = idx % assets.length;
+  const current = assets[safeIdx];
+  const next = assets[(safeIdx + 1) % assets.length];
 
   const advance = useCallback(() => {
     setIdx((i) => (i + 1) % assets.length);
   }, [assets.length]);
 
-  // Image timer driven by per-property setting
+  // Image timer — keyed by the asset id (stable across refetches) so a
+  // background poll doesn't restart the slideshow mid-image.
   useEffect(() => {
     if (paused) return;
     if (current.file_type !== "image") return;
@@ -55,21 +71,38 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
         const img = new Image();
         img.src = next.file_url;
         preloadRef.current = img;
+      } else {
+        const v = document.createElement("video");
+        v.src = next.file_url;
+        v.preload = "auto";
+        preloadRef.current = v;
       }
-    }, Math.max(1000, ms - 1000));
+    }, Math.max(500, ms - 1500));
     return () => {
       clearTimeout(advanceTimer.current);
       clearTimeout(pre);
     };
-  }, [current, next, paused, advance, imageSeconds]);
+  }, [current.id, next.id, next.file_type, next.file_url, paused, advance, imageSeconds]);
 
-  // Video pause/play
+  // Video pause/play — depend on the asset id, not idx, so a refetch with
+  // identical data does not yank the video back to the start.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (paused) v.pause(); else v.play().catch(() => {});
     v.muted = muted;
-  }, [paused, muted, idx]);
+    if (paused) v.pause(); else v.play().catch(() => {});
+  }, [paused, muted, current.id]);
+
+  // Safety net: if a video stalls or fails, move on after a generous timeout
+  // instead of getting stuck on a black frame.
+  useEffect(() => {
+    if (current.file_type !== "video" || paused) return;
+    const stallTimer = window.setTimeout(() => {
+      const v = videoRef.current;
+      if (!v || v.readyState < 2 || v.paused) advance();
+    }, 15_000);
+    return () => clearTimeout(stallTimer);
+  }, [current.id, current.file_type, paused, advance]);
 
   // Controls reveal
   function reveal() {
@@ -108,6 +141,8 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
           autoPlay muted={muted} playsInline
           className="w-full h-full object-contain bg-black"
           onEnded={advance}
+          onError={advance}
+          onCanPlay={() => { videoRef.current?.play().catch(() => {}); }}
         />
       )}
 
