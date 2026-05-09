@@ -13,7 +13,7 @@ import {
   type Session,
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
-import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, ArrowUp, ArrowDown, Clock } from "lucide-react";
+import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, GripVertical, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 
@@ -289,15 +289,14 @@ function PropertyCard({
         {property.assets.length === 0 && (
           <p className="text-soft text-sm py-2">No content yet.</p>
         )}
-        {property.assets.map((a, i) => (
-          <AssetRow
-            key={a.id} asset={a} role={role}
+        {property.assets.length > 0 && (
+          <AssetList
+            assets={property.assets}
             slug={property.slug}
-            ids={property.assets.map((x) => x.id)}
-            index={i}
+            role={role}
             onChanged={refresh}
           />
-        ))}
+        )}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
