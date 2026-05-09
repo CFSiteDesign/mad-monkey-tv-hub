@@ -502,6 +502,16 @@ export function DashboardWalkthrough({ locationKey, role }: {
       {/* Interactive: drag a ghost row down to reorder */}
       {current.interactive === "drag" && (
         <InteractiveRowDrag
+          targetRect={spot ?? fallbackInteractiveTarget}
+          completed={completed}
+          onSuccess={onInteractiveSuccess}
+        />
+      )}
+
+      {/* Interactive: drag a slider thumb across to set duration */}
+      {current.interactive === "slider" && (
+        <InteractiveSlider
+          targetRect={spot ?? fallbackInteractiveTarget}
           completed={completed}
           onSuccess={onInteractiveSuccess}
         />
