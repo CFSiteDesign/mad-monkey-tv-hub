@@ -186,6 +186,7 @@ function CollapsibleProperty({ property }: { property: PropertyData }) {
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-white/5 transition-colors"
         aria-expanded={open}
+        data-tour="property"
       >
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-widest text-soft">{property.country}</p>
@@ -317,6 +318,7 @@ function PropertyCard({
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <button
           className="tv-btn"
+          data-tour="copy-link"
           onClick={() => {
             navigator.clipboard.writeText(playUrl);
           }}
@@ -428,6 +430,7 @@ function AssetList({
               className="text-soft hover:text-white cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none"
               title="Drag to reorder"
               aria-label="Drag to reorder"
+              data-tour="reorder"
             >
               <GripVertical className="w-4 h-4" />
             </button>
@@ -464,7 +467,7 @@ function ImageDurationRow({ slug, initial }: { slug: string; initial: number }) 
     mutationFn: (n: number) => save({ data: { slug, seconds: n, auth_token: getDashboardAuthToken() } }),
   });
   return (
-    <div className="mt-4 p-3 rounded-lg bg-black/40 border border-white/5">
+    <div className="mt-4 p-3 rounded-lg bg-black/40 border border-white/5" data-tour="duration">
       <div className="flex items-center gap-3 mb-3">
         <Clock className="w-4 h-4 text-soft shrink-0" />
         <label className="text-sm text-soft">Image duration</label>
@@ -575,6 +578,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
   return (
     <div
       className={`tv-dropzone ${drag ? "is-dragging" : ""}`}
+      data-tour="upload"
       onClick={() => { if (!busy) inputRef.current?.click(); }}
       onDragOver={(e: DragEvent) => { e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
