@@ -14,7 +14,7 @@ import {
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
 import { DashboardWalkthrough } from "@/components/DashboardWalkthrough";
-import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, GripVertical, Clock } from "lucide-react";
+import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, GripVertical, Clock, ChevronDown } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 
@@ -206,15 +206,43 @@ function GlobalView() {
       {Object.entries(grouped).map(([country, props]) => (
         <section key={country}>
           <h2 className="country-heading mb-6">{country}</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-3">
             {props.map((p) =>
               p.coming_soon
                 ? <ComingSoonCard key={p.id} name={p.name} country={p.country} />
-                : <PropertyCard key={p.id} property={p as any} role="global_marketing" />
+                : <CollapsibleProperty key={p.id} property={p as any} />
             )}
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+function CollapsibleProperty({ property }: { property: PropertyData }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="tv-card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-white/5 transition-colors"
+        aria-expanded={open}
+      >
+        <div className="min-w-0">
+          <p className="text-xs uppercase tracking-widest text-soft">{property.country}</p>
+          <h3 className="text-xl font-bold truncate">{property.name}</h3>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="tv-pill">{property.assets.length} items</span>
+          <ChevronDown className={`w-5 h-5 text-soft transition-transform ${open ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+      {open && (
+        <div className="border-t border-white/10 p-5">
+          <PropertyCard property={property} role="global_marketing" embedded />
+        </div>
+      )}
     </div>
   );
 }
