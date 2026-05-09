@@ -515,15 +515,21 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
     const allowedExt = ["mp4", "mov", "png", "jpg", "jpeg"];
     const allowedMime = ["video/mp4", "video/quicktime", "image/png", "image/jpeg"];
     const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500 MB
+    const MAX_FILES_PER_BATCH = 5;
     const accepted: File[] = [];
     const rejected: string[] = [];
     const oversized: string[] = [];
-    for (const f of Array.from(files)) {
+    const all = Array.from(files);
+    const tooMany = all.length > MAX_FILES_PER_BATCH;
+    for (const f of all.slice(0, MAX_FILES_PER_BATCH)) {
       const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
       const ok = allowedExt.includes(ext) || allowedMime.includes(f.type);
       if (!ok) { rejected.push(f.name); continue; }
       if (f.size > MAX_FILE_BYTES) { oversized.push(f.name); continue; }
       accepted.push(f);
+    }
+    if (tooMany) {
+      alert(`You can upload up to ${MAX_FILES_PER_BATCH} files at a time. Only the first ${MAX_FILES_PER_BATCH} will be uploaded.`);
     }
     if (rejected.length) {
       alert(`Only MP4, MOV, PNG and JPEG are allowed.\nSkipped: ${rejected.join(", ")}`);
