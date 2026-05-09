@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import logo from "@/assets/TheoroXlogo.png";
+import { supabase } from "@/integrations/supabase/client";
 import {
   getSessionFn, loginFn, logoutFn,
   listPropertiesFn, createUploadUrlFn, recordUploadFn,
@@ -389,7 +390,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
         setProgress(`Uploading ${i}/${files.length}: ${file.name}`);
         const type = file.type.startsWith("video") ? "video" : "image";
         const init = await createUrl({ data: { slug, file_name: file.name } });
-        await uploadWithProgress(init.signedUrl, file, (p) => setPct(p));
+        await uploadToStorage(init.path, init.token, file, (p) => setPct(p));
         await record({ data: {
           slug, file_url: init.publicUrl, file_name: file.name,
           file_size: file.size, file_type: type,
@@ -438,27 +439,22 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
   );
 }
 
-function uploadWithProgress(
-  url: string,
+async function uploadToStorage(
+  path: string,
+  token: string,
   file: File,
   onProgress: (pct: number) => void,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-    xhr.setRequestHeader("x-upsert", "true");
-    xhr.setRequestHeader("cache-control", "3600");
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) { onProgress(100); resolve(); }
-      else reject(new Error(`Upload failed for ${file.name} (${xhr.status}${xhr.responseText ? `: ${xhr.responseText}` : ""})`));
-    };
-    xhr.onerror = () => reject(new Error(`Upload failed for ${file.name}`));
-    xhr.send(file);
-  });
+  const { error } = await supabase.storage
+    .from("tv-content")
+    .uploadToSignedUrl(path, token, file, {
+      contentType: file.type || "application/octet-stream",
+      cacheControl: "3600",
+    });
+  if (error) {
+    throw new Error(`Upload failed for ${file.name}: ${error.message}`);
+  }
+  onProgress(100);
 }
 
 function formatBytes(n: number) {
