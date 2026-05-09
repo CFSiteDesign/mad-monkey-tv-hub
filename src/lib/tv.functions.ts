@@ -311,9 +311,9 @@ export const setImageDurationFn = createServerFn({ method: "POST" })
   });
 
 export const regenerateCodeFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { slug: string }) => d)
+  .inputValidator((d: { slug: string } & AuthInput) => ({ slug: String(d.slug), auth_token: normalizeAuthToken(d.auth_token) }))
   .handler(async ({ data }) => {
-    const session = await resolveSession();
+    const session = await resolveSession(data.auth_token);
     if (!session || session.role !== "global_marketing") {
       throw new Response("Forbidden", { status: 403 });
     }
