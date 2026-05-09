@@ -507,7 +507,14 @@ export function DashboardWalkthrough({ locationKey, role }: {
           >
             <ChevronLeft className="w-4 h-4" /> Back
           </Button>
-          {isLast ? (
+          {current.interactive ? (
+            <button
+              className="text-xs text-soft hover:text-white underline underline-offset-4"
+              onClick={advance}
+            >
+              {completed ? "Nice! Continuing…" : "Skip"}
+            </button>
+          ) : isLast ? (
             <button
               className="tv-btn-solid text-sm py-2 px-4 disabled:opacity-50"
               onClick={handleNext}
