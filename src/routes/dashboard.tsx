@@ -296,19 +296,23 @@ type PropertyData = {
 };
 
 function PropertyCard({
-  property, role, hideCode = false,
-}: { property: PropertyData; role: "global_marketing" | "gm"; hideCode?: boolean }) {
+  property, role, hideCode = false, embedded = false,
+}: { property: PropertyData; role: "global_marketing" | "gm"; hideCode?: boolean; embedded?: boolean }) {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: ["tv-all"] });
   const playUrl = `https://mad-monkey-tv-hub.lovable.app/${property.slug}/play`;
 
   return (
-    <div className="tv-card p-6">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs uppercase tracking-widest text-soft">{property.country}</span>
-        <span className="tv-pill">{property.assets.length} items</span>
-      </div>
-      <h3 className="text-2xl font-bold mb-4">{property.name}</h3>
+    <div className={embedded ? "" : "tv-card p-6"}>
+      {!embedded && (
+        <>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs uppercase tracking-widest text-soft">{property.country}</span>
+            <span className="tv-pill">{property.assets.length} items</span>
+          </div>
+          <h3 className="text-2xl font-bold mb-4">{property.name}</h3>
+        </>
+      )}
 
       <UploadDropzone slug={property.slug} onDone={refresh} />
 
