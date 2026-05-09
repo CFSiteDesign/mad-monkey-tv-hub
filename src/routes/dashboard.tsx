@@ -226,7 +226,7 @@ function StorageBar({ used }: { used: number }) {
   const warn = pct >= 80;
   return (
     <div className="mt-2 w-full max-w-xs">
-      <div className="flex items-center justify-between text-[11px] text-soft mb-1">
+      <div className="flex items-center justify-between gap-2 text-[11px] text-soft mb-1">
         <span>Storage</span>
         <span className={warn ? "text-amber-400" : ""}>
           {formatBytes(used)} / 5 GB
