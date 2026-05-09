@@ -82,7 +82,7 @@ export const listPropertiesPublicFn = createServerFn({ method: "GET" }).handler(
     .select("slug,name,country,coming_soon,access_code")
     .order("country")
     .order("name");
-  return data ?? [];
+  return sortKampotLast(data ?? []);
 });
 
 // DEV: log in directly as a property or global without typing a code
