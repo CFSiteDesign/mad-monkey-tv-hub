@@ -152,6 +152,20 @@ function Player({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const waitingForCache = cacheStatus.active && cacheStatus.cached < cacheStatus.total;
+
+  if (waitingForCache) {
+    return (
+      <div className="fixed inset-0 bg-black flex flex-col items-center justify-center px-6 text-center">
+        <Heart className="w-20 h-20 text-white mb-6" fill="white" />
+        <p className="text-white text-2xl tracking-wide mb-3">Saving media offline</p>
+        <p className="text-white/60 text-lg">
+          {cacheStatus.cached}/{cacheStatus.total} files ready
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`fixed inset-0 bg-black ${showControls ? "" : "cursor-none"}`}
