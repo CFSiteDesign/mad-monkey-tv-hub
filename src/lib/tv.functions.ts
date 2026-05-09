@@ -22,22 +22,41 @@ function defaultAdminPassword() {
   return process.env.ADMIN_PASSWORD || "9";
 }
 
+type AuthInput = { auth_token?: string | null };
+
+function normalizeAuthToken(value?: string | null) {
+  const token = String(value || "").trim();
+  return token || null;
+}
+
 export type Session =
   | { role: "global_marketing" }
   | { role: "gm"; slug: string; name: string; country: string };
 
-async function resolveSession(): Promise<Session | null> {
-  const token = getCookie(COOKIE_NAME);
+async function resolveSession(authToken?: string | null): Promise<Session | null> {
+  const token = normalizeAuthToken(authToken) ?? getCookie(COOKIE_NAME);
   if (!token) return null;
-  if (token === defaultAdminPassword()) return { role: "global_marketing" };
-  const { data } = await supabaseAdmin
+  if (token === "__global__" || token === defaultAdminPassword()) return { role: "global_marketing" };
+
+  const { data: byCode } = await supabaseAdmin
     .from("properties")
-    .select("slug,name,country")
+    .select("slug,name,country,coming_soon")
     .eq("access_code", token)
     .order("name")
     .limit(1);
-  const row = data?.[0];
+
+  let row = byCode?.[0];
+  if (!row) {
+    const { data: bySlug } = await supabaseAdmin
+      .from("properties")
+      .select("slug,name,country,coming_soon")
+      .eq("slug", token)
+      .limit(1);
+    row = bySlug?.[0];
+  }
+
   if (!row) return null;
+  if (row.coming_soon) return null;
   return { role: "gm", slug: row.slug, name: row.name, country: row.country };
 }
 
