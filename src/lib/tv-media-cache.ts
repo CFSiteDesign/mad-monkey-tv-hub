@@ -10,6 +10,7 @@ export type MediaCacheStatus = {
 export async function registerMediaCacheWorker() {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return false;
   try {
+    await navigator.storage?.persist?.();
     await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: "/" });
     await navigator.serviceWorker.ready;
     return true;
@@ -29,7 +30,12 @@ export async function cacheMediaFiles(
 
   const uniqueUrls = Array.from(new Set(urls.filter(Boolean)));
   const cache = await caches.open(CACHE_NAME);
+  const keep = new Set(uniqueUrls);
   let cached = 0;
+
+  for (const request of await cache.keys()) {
+    if (!keep.has(request.url)) await cache.delete(request);
+  }
 
   for (const url of uniqueUrls) {
     const existing = await cache.match(url, { ignoreVary: true });
@@ -50,4 +56,6 @@ export async function cacheMediaFiles(
       onProgress?.({ total: uniqueUrls.length, cached, active: cached < uniqueUrls.length });
     }
   }
+
+  onProgress?.({ total: uniqueUrls.length, cached, active: false });
 }
