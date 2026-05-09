@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Pause, Play, Volume2, VolumeX, Heart } from "lucide-react";
 import { getPlayDataFn } from "@/lib/tv.functions";
 
@@ -66,18 +66,16 @@ function Player({ assets, imageSeconds }: { assets: { id: string; file_url: stri
     if (current.file_type !== "image") return;
     const ms = Math.max(2, imageSeconds) * 1000;
     advanceTimer.current = window.setTimeout(advance, ms);
+    // Only preload images — preloading a full video on a Fire Stick chews
+    // memory hard and causes the device to freeze. The <video> element
+    // itself will buffer when it mounts.
     const pre = window.setTimeout(() => {
       if (next.file_type === "image") {
         const img = new Image();
         img.src = next.file_url;
         preloadRef.current = img;
-      } else {
-        const v = document.createElement("video");
-        v.src = next.file_url;
-        v.preload = "auto";
-        preloadRef.current = v;
       }
-    }, Math.max(500, ms - 1500));
+    }, Math.max(500, ms - 1000));
     return () => {
       clearTimeout(advanceTimer.current);
       clearTimeout(pre);
