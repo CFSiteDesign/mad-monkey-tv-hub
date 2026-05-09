@@ -10,7 +10,7 @@ import {
   type Session,
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
-import { Trash2, RefreshCw, Link2, GripVertical, FileVideo, Image as ImageIcon, UploadCloud } from "lucide-react";
+import { Trash2, RefreshCw, Link2, GripVertical, FileVideo, UploadCloud } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "TV Hub by TheoroX" }] }),
