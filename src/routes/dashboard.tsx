@@ -576,41 +576,43 @@ async function uploadToStorage(
   file: File,
   onProgress: (pct: number) => void,
 ): Promise<void> {
-  const { error } = await supabase.storage
-    .from("tv-content")
-    .uploadToSignedUrl(path, token, file, {
-      contentType: file.type || "application/octet-stream",
-      cacheControl: "3600",
-    });
-  if (error) {
-    const failure = await enrichStorageUploadError(error, path, token, file);
+  const failure = await rawUploadToSignedUrl(path, token, file);
+  if (failure) {
     console.error("TV content upload failed", failure);
     throw Object.assign(new Error(failure.message), { uploadFailure: failure });
   }
   onProgress(100);
 }
 
-async function enrichStorageUploadError(error: unknown, path: string, token: string, file: File): Promise<StorageUploadFailure> {
-  const fallbackMessage = error instanceof Error ? error.message : String(error || "Upload failed");
-  const failure: StorageUploadFailure = { fileName: file.name, message: fallbackMessage };
+async function rawUploadToSignedUrl(path: string, token: string, file: File): Promise<StorageUploadFailure | null> {
+  const failure: StorageUploadFailure = { fileName: file.name, message: "Upload failed" };
 
   try {
     const { data: { publicUrl } } = supabase.storage.from("tv-content").getPublicUrl(path);
     const projectOrigin = new URL(publicUrl).origin;
+    const body = new FormData();
+    body.append("cacheControl", "3600");
+    body.append("", file);
+
+    const headers: Record<string, string> = { "x-upsert": "false" };
+    const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    if (apiKey) headers.apikey = apiKey;
+
     const response = await fetch(`${projectOrigin}/storage/v1/object/upload/sign/tv-content/${encodeStoragePath(path)}?token=${encodeURIComponent(token)}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": file.type || "application/octet-stream",
-        "Cache-Control": "3600",
-      },
-      body: file,
+      headers,
+      body,
     });
+
+    if (response.ok) return null;
 
     failure.status = response.status;
     failure.body = await response.text();
-    if (!response.ok) failure.message = classifyStorageUploadFailure(failure, fallbackMessage);
+    failure.message = classifyStorageUploadFailure(failure, response.statusText || "Upload failed");
   } catch (rawError) {
-    failure.body = rawError instanceof Error ? rawError.message : String(rawError || "Unable to read raw storage response");
+    const fallbackMessage = rawError instanceof Error ? rawError.message : String(rawError || "Upload failed");
+    failure.body = fallbackMessage;
+    failure.message = `Upload failed for ${file.name}: ${fallbackMessage}`;
   }
 
   return failure;
