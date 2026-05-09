@@ -3,13 +3,8 @@ import madMonkey from "@/assets/mad-monkey-logo.png";
 import type { Session } from "@/lib/tv.functions";
 
 export function TvHubHeader({
-  session, onLogout,
-}: { session: Session; onLogout: () => void }) {
-  const pillText =
-    session.role === "global_marketing"
-      ? "Mad Monkey Hostels · Global Marketing"
-      : `${session.name} · ${session.country}`;
-
+  onLogout,
+}: { session?: Session; onLogout: () => void }) {
   return (
     <header className="flex items-center justify-between px-6 sm:px-10 py-5 border-b border-white/10">
       <img src={logo} alt="TheoroX" className="h-14 w-auto" />
