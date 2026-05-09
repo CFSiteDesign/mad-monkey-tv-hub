@@ -1,63 +1,130 @@
-import { useEffect, useLayoutEffect, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Sparkles, MousePointer2 } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { X, ChevronLeft, ChevronRight, Sparkles, MousePointer2, FileImage } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+/**
+ * Animated, action-driven dashboard walkthrough.
+ *
+ * Each step can:
+ *   - spotlight a real DOM element (selector)
+ *   - show a hint pill near the pointer
+ *   - on Next, run an `action` that actually performs the task on the page
+ *     (clicks, toggles) or plays a demo animation (faux file drop, faux drag).
+ */
+
+type DemoKind = "fileDrop" | "drag" | null;
+
+type StepCtx = {
+  /** Trigger a demo animation overlay anchored to a selector. */
+  playDemo: (kind: DemoKind, targetSelector?: string) => Promise<void>;
+  /** Wait for ms (used between programmatic clicks and the next step). */
+  wait: (ms: number) => Promise<void>;
+};
 
 type Step = {
   title: string;
   body: string;
   /** CSS selector for the element to spotlight. Omit for centered intro/outro. */
   selector?: string;
-  /** Hint text shown next to the pointer (e.g. "Click here", "Drag me"). */
+  /** Hint text shown near the pointer (e.g. "Click here", "Drag me"). */
   hint?: string;
+  /** Label for the Next button (e.g. "Show me", "Open it"). */
+  nextLabel?: string;
+  /** Action performed when the user clicks Next. Runs before advancing. */
+  action?: (ctx: StepCtx) => Promise<void> | void;
 };
 
 const GLOBAL_STEPS: Step[] = [
   {
     title: "Welcome to the TV Hub",
-    body: "You're logged in as Global Marketing. Quick tour — I'll point at every key control.",
+    body: "You're logged in as Global Marketing. I'll walk you through every key control — and actually show you each action.",
   },
   {
     title: "Open a property",
-    body: "Each row is a property. Click to expand and manage its TV content.",
+    body: "Each row is a property. I'll click this one open for you.",
     selector: '[data-tour="property"]',
     hint: "Click to expand",
+    nextLabel: "Open it",
+    action: async ({ wait }) => {
+      const el = document.querySelector('[data-tour="property"]') as HTMLButtonElement | null;
+      el?.click();
+      // Let the panel mount before measuring the next step's target.
+      await wait(450);
+    },
   },
   {
     title: "Upload images and videos",
-    body: "Drop MP4, MOV, PNG or JPEG here — or click to browse. Files go live on that property's TVs immediately.",
+    body: "Drop MP4, MOV, PNG or JPEG files here — or click to browse. Watch this demo file land in the zone.",
     selector: '[data-tour="upload"]',
     hint: "Drop files here",
+    nextLabel: "Show me",
+    action: async ({ playDemo }) => {
+      await playDemo("fileDrop", '[data-tour="upload"]');
+    },
   },
   {
     title: "Reorder with drag and drop",
-    body: "Grab any item by its handle and drag it where you want. The new order saves automatically.",
+    body: "Grab any item by its handle and drag it where you want. Watch — I'll demo the gesture.",
     selector: '[data-tour="reorder"]',
     hint: "Drag to reorder",
+    nextLabel: "Show me",
+    action: async ({ playDemo }) => {
+      await playDemo("drag", '[data-tour="reorder"]');
+    },
+  },
+  {
+    title: "Compress videos for TV",
+    body: "Toggle ON re-encodes videos to 1080p H.264 in your browser before upload — smoother playback on Fire Stick, much smaller files. Toggle OFF to upload originals as-is. I'll flip it for you.",
+    selector: '[data-tour="compress-toggle"]',
+    hint: "Tap to toggle",
+    nextLabel: "Toggle it",
+    action: async ({ wait }) => {
+      const el = document.querySelector('[data-tour="compress-toggle"] input[type="checkbox"]') as HTMLInputElement | null;
+      el?.click();
+      await wait(250);
+      // Toggle it back so we leave the user's setting unchanged.
+      el?.click();
+      await wait(150);
+    },
   },
   {
     title: "Share the public link",
-    body: "Copy the property's public URL and paste it into the TV browser to start the slideshow.",
+    body: "Copy the property's public URL and paste it into the TV browser to start the slideshow. I'll copy it now.",
     selector: '[data-tour="copy-link"]',
     hint: "Copy public link",
+    nextLabel: "Copy it",
+    action: async ({ wait }) => {
+      const el = document.querySelector('[data-tour="copy-link"]') as HTMLButtonElement | null;
+      el?.click();
+      await wait(300);
+    },
   },
 ];
 
 const GM_STEPS: Step[] = [
   {
     title: "Welcome to your TV Hub",
-    body: "This is your property's dashboard. I'll point at each control — anything you upload here goes live on your TVs right away.",
+    body: "Quick tour — I'll point at each control and actually demo the action for you.",
   },
   {
     title: "Upload your media",
-    body: "Drop MP4, MOV, PNG or JPEG here or click to browse.",
+    body: "Drop MP4, MOV, PNG or JPEG here or click to browse. Watch this demo file land in.",
     selector: '[data-tour="upload"]',
     hint: "Drop files here",
+    nextLabel: "Show me",
+    action: async ({ playDemo }) => {
+      await playDemo("fileDrop", '[data-tour="upload"]');
+    },
   },
   {
     title: "Reorder by drag and drop",
-    body: "Grab the handle on any item and drag it to change playback order.",
+    body: "Grab the handle on any item and drag it to change playback order. I'll demo the gesture.",
     selector: '[data-tour="reorder"]',
     hint: "Drag to reorder",
+    nextLabel: "Show me",
+    action: async ({ playDemo }) => {
+      await playDemo("drag", '[data-tour="reorder"]');
+    },
   },
   {
     title: "Image duration",
@@ -66,10 +133,30 @@ const GM_STEPS: Step[] = [
     hint: "Set duration",
   },
   {
+    title: "Compress videos for TV",
+    body: "Toggle ON re-encodes videos to 1080p H.264 in your browser — smoother on Fire Stick, much smaller files. Adds 1–8 min per video. I'll flip it for you so you can see.",
+    selector: '[data-tour="compress-toggle"]',
+    hint: "Tap to toggle",
+    nextLabel: "Toggle it",
+    action: async ({ wait }) => {
+      const el = document.querySelector('[data-tour="compress-toggle"] input[type="checkbox"]') as HTMLInputElement | null;
+      el?.click();
+      await wait(250);
+      el?.click();
+      await wait(150);
+    },
+  },
+  {
     title: "Copy the public link",
-    body: "Paste this URL into the TV browser to start the slideshow.",
+    body: "Paste this URL into the TV browser to start the slideshow. I'll copy it now.",
     selector: '[data-tour="copy-link"]',
     hint: "Copy public link",
+    nextLabel: "Copy it",
+    action: async ({ wait }) => {
+      const el = document.querySelector('[data-tour="copy-link"]') as HTMLButtonElement | null;
+      el?.click();
+      await wait(300);
+    },
   },
 ];
 
@@ -89,11 +176,8 @@ function useTargetRect(selector: string | undefined): Rect | null {
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
     };
 
-    // Scroll target into view first, then measure on a loop until stable.
     const el = document.querySelector(selector) as HTMLElement | null;
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
 
     const tick = () => { measure(); raf = requestAnimationFrame(tick); };
     raf = requestAnimationFrame(tick);
@@ -108,6 +192,8 @@ function useTargetRect(selector: string | undefined): Rect | null {
   return rect;
 }
 
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export function DashboardWalkthrough({ locationKey, role }: {
   locationKey: string;
   role: "global_marketing" | "gm";
@@ -116,10 +202,15 @@ export function DashboardWalkthrough({ locationKey, role }: {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [dontShow, setDontShow] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [demo, setDemo] = useState<{ kind: Exclude<DemoKind, null>; rect: Rect } | null>(null);
 
   const steps = role === "global_marketing" ? GLOBAL_STEPS : GM_STEPS;
   const current = steps[step];
   const rect = useTargetRect(current?.selector);
+
+  // Live ref to the demo state so the action callback can await its end.
+  const demoEndRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -146,12 +237,48 @@ export function DashboardWalkthrough({ locationKey, role }: {
     setOpen(false);
   }
 
+  async function playDemo(kind: DemoKind, selector?: string) {
+    if (!kind) return;
+    const sel = selector ?? current?.selector;
+    const el = sel ? (document.querySelector(sel) as HTMLElement | null) : null;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const targetRect: Rect = { top: r.top, left: r.left, width: r.width, height: r.height };
+    setDemo({ kind, rect: targetRect });
+    // Animation length per demo kind.
+    const duration = kind === "drag" ? 1900 : 1700;
+    await new Promise<void>((resolve) => {
+      demoEndRef.current = resolve;
+      setTimeout(() => {
+        setDemo(null);
+        demoEndRef.current?.();
+        demoEndRef.current = null;
+      }, duration);
+    });
+  }
+
+  async function handleNext() {
+    if (running) return;
+    setRunning(true);
+    try {
+      if (current?.action) {
+        await current.action({ playDemo, wait });
+      }
+      if (step < steps.length - 1) {
+        setStep((s) => s + 1);
+      } else {
+        close();
+      }
+    } finally {
+      setRunning(false);
+    }
+  }
+
   if (!open || !current) return null;
 
   const isLast = step === steps.length - 1;
   const PADDING = 10;
 
-  // Compute spotlight box (with padding) and clamp to viewport.
   const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
   const vh = typeof window !== "undefined" ? window.innerHeight : 768;
 
@@ -164,9 +291,8 @@ export function DashboardWalkthrough({ locationKey, role }: {
       }
     : null;
 
-  // Tooltip placement: prefer below, otherwise above.
   const TOOLTIP_W = 360;
-  const TOOLTIP_H_EST = 220;
+  const TOOLTIP_H_EST = 240;
   let tooltipStyle: React.CSSProperties;
   let pointerStyle: React.CSSProperties | null = null;
 
@@ -182,7 +308,6 @@ export function DashboardWalkthrough({ locationKey, role }: {
     );
     tooltipStyle = { top, left, width: TOOLTIP_W };
 
-    // Animated pointer: sits at the side of the spotlight closest to tooltip.
     pointerStyle = placeBelow
       ? {
           top: spot.top + spot.height + 4,
@@ -204,7 +329,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
 
   return (
     <div className="fixed inset-0 z-[60] pointer-events-none">
-      {/* Dimmed overlay with spotlight cutout via giant box-shadow trick */}
+      {/* Dimmed overlay with spotlight cutout */}
       {spot ? (
         <>
           <div
@@ -218,7 +343,6 @@ export function DashboardWalkthrough({ locationKey, role }: {
             }}
             onClick={(e) => e.stopPropagation()}
           />
-          {/* Animated pulsing ring around the target */}
           <div
             className="absolute rounded-xl pointer-events-none animate-pulse"
             style={{
@@ -231,8 +355,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
               transition: "all 300ms ease-out",
             }}
           />
-          {/* Animated pointer hand */}
-          {pointerStyle && (
+          {pointerStyle && !demo && (
             <div
               className="absolute pointer-events-none"
               style={{ ...pointerStyle, transition: "all 300ms ease-out" }}
@@ -258,6 +381,61 @@ export function DashboardWalkthrough({ locationKey, role }: {
           onClick={close}
         />
       )}
+
+      {/* Demo animations */}
+      {demo?.kind === "fileDrop" && (
+        <div
+          className="absolute pointer-events-none flex items-center justify-center"
+          style={{
+            top: demo.rect.top,
+            left: demo.rect.left,
+            width: demo.rect.width,
+            height: demo.rect.height,
+          }}
+        >
+          <div className="tv-tour-filedrop flex items-center gap-2 px-3 py-2 rounded-lg bg-white text-black text-xs font-semibold shadow-xl">
+            <FileImage className="w-4 h-4" />
+            demo-image.jpg
+          </div>
+        </div>
+      )}
+
+      {demo?.kind === "drag" && (() => {
+        // Find the asset row that contains the drag handle and animate a ghost
+        // from row 1's position down to row 2's position.
+        const handle = document.querySelector('[data-tour="reorder"]') as HTMLElement | null;
+        const row1 = handle?.closest("div.flex");
+        const row2 = row1?.nextElementSibling as HTMLElement | null;
+        if (!row1) return null;
+        const r1 = (row1 as HTMLElement).getBoundingClientRect();
+        const r2 = row2 ? row2.getBoundingClientRect() : { top: r1.top + r1.height + 6 };
+        const dy = r2.top - r1.top;
+        return (
+          <div
+            className="absolute pointer-events-none"
+            style={{ top: r1.top, left: r1.left, width: r1.width, height: r1.height }}
+          >
+            <div
+              className="tv-tour-drag absolute inset-0 rounded-lg border-2 border-white/80 bg-white/10 backdrop-blur-sm"
+              style={{ ["--tv-tour-drag-dy" as any]: `${dy}px` }}
+            />
+            <div
+              className="tv-tour-drag-cursor absolute"
+              style={{
+                ["--tv-tour-drag-dy" as any]: `${dy}px`,
+                top: r1.height / 2 - 14,
+                left: 6,
+              }}
+            >
+              <MousePointer2
+                className="w-7 h-7 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]"
+                strokeWidth={2.5}
+                fill="white"
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tooltip card */}
       <div
@@ -297,21 +475,26 @@ export function DashboardWalkthrough({ locationKey, role }: {
             variant="ghost"
             size="sm"
             onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={step === 0}
+            disabled={step === 0 || running}
             className="text-soft"
           >
             <ChevronLeft className="w-4 h-4" /> Back
           </Button>
           {isLast ? (
-            <button className="tv-btn-solid text-sm py-2 px-4" onClick={close}>
-              Got it
+            <button
+              className="tv-btn-solid text-sm py-2 px-4 disabled:opacity-50"
+              onClick={handleNext}
+              disabled={running}
+            >
+              {running ? "…" : current.action ? (current.nextLabel ?? "Show me") : "Got it"}
             </button>
           ) : (
             <Button
               size="sm"
-              onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}
+              onClick={handleNext}
+              disabled={running}
             >
-              Next <ChevronRight className="w-4 h-4" />
+              {running ? "…" : (current.nextLabel ?? "Next")} <ChevronRight className="w-4 h-4" />
             </Button>
           )}
         </div>
@@ -333,6 +516,30 @@ export function DashboardWalkthrough({ locationKey, role }: {
           50% { transform: translateY(6px); }
         }
         .tv-tour-pointer { animation: tvTourBob 1.1s ease-in-out infinite; }
+
+        @keyframes tvTourFileDrop {
+          0% { transform: translateY(-140px) scale(0.85); opacity: 0; }
+          25% { opacity: 1; }
+          70% { transform: translateY(0) scale(1); opacity: 1; }
+          100% { transform: translateY(0) scale(1); opacity: 0; }
+        }
+        .tv-tour-filedrop { animation: tvTourFileDrop 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+
+        @keyframes tvTourDragGhost {
+          0%   { transform: translateY(0)              scale(1);    opacity: 0; }
+          15%  { transform: translateY(0)              scale(1.03); opacity: 1; }
+          85%  { transform: translateY(var(--tv-tour-drag-dy)) scale(1.03); opacity: 1; }
+          100% { transform: translateY(var(--tv-tour-drag-dy)) scale(1);    opacity: 0; }
+        }
+        .tv-tour-drag { animation: tvTourDragGhost 1.8s cubic-bezier(.2,.7,.2,1) forwards; }
+
+        @keyframes tvTourDragCursor {
+          0%   { transform: translateY(0)              scale(1);    }
+          15%  { transform: translateY(0)              scale(1.15); }
+          85%  { transform: translateY(var(--tv-tour-drag-dy)) scale(1.15); }
+          100% { transform: translateY(var(--tv-tour-drag-dy)) scale(1);    }
+        }
+        .tv-tour-drag-cursor { animation: tvTourDragCursor 1.8s cubic-bezier(.2,.7,.2,1) forwards; }
       `}</style>
     </div>
   );
