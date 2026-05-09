@@ -644,15 +644,16 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
             Up to 500 MB. Images auto-optimized. Goes live on the TV immediately.
           </p>
           <label
-            className="mt-3 inline-flex items-center gap-2 text-xs text-soft cursor-pointer select-none"
+            className="mt-3 inline-flex items-center gap-2 text-xs text-soft cursor-pointer select-none group"
             data-tour="compress-toggle"
             onClick={(e) => e.stopPropagation()}
           >
+            <span className={`tv-gradient-toggle ${compressVideos ? "is-on" : ""}`} aria-hidden="true" />
             <input
               type="checkbox"
               checked={compressVideos}
               onChange={(e) => setCompressVideos(e.target.checked)}
-              className="accent-white"
+              className="sr-only"
             />
             Compress videos for TV (recommended — smoother on Fire Stick)
             <span
