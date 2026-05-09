@@ -345,7 +345,7 @@ function PropertyCodeRow({ slug, initial }: { slug: string; initial: string }) {
 }
 
 function AssetList({
-  assets, slug, role, onChanged,
+  assets, slug, onChanged,
 }: {
   assets: Asset[]; slug: string; role: "global_marketing" | "gm"; onChanged: () => void;
 }) {
@@ -355,13 +355,12 @@ function AssetList({
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
-  // Sync local order when server data changes
-  const serverIds = assets.map((a) => a.id).join(",");
-  const localIds = order.map((a) => a.id).join(",");
-  if (serverIds !== localIds && dragId === null) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    setOrder(assets);
-  }
+  // Sync local order when server data changes (and we're not mid-drag)
+  const serverKey = assets.map((a) => a.id).join(",");
+  useEffect(() => {
+    if (dragId === null) setOrder(assets);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverKey]);
 
   const persist = useMutation({
     mutationFn: (ids: string[]) =>
