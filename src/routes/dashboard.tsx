@@ -13,7 +13,7 @@ import {
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
 import { DashboardWalkthrough } from "@/components/DashboardWalkthrough";
-import { Trash2, Link2, FileVideo, UploadCloud, GripVertical, Clock, ChevronDown } from "lucide-react";
+import { Trash2, Link2, FileVideo, UploadCloud, GripVertical, Clock, ChevronDown, Info } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 import { compressImage, compressVideo } from "@/lib/media-compress";
@@ -645,6 +645,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
           </p>
           <label
             className="mt-3 inline-flex items-center gap-2 text-xs text-soft cursor-pointer select-none"
+            data-tour="compress-toggle"
             onClick={(e) => e.stopPropagation()}
           >
             <input
@@ -654,6 +655,17 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
               className="accent-white"
             />
             Compress videos for TV (recommended — smoother on Fire Stick)
+            <span
+              className="inline-flex items-center justify-center w-4 h-4 rounded-full text-soft hover:text-white"
+              title={
+                "Re-encodes your video to 1080p H.264 right in your browser before upload. " +
+                "Result: smoother playback on Fire Stick TVs and a much smaller file. " +
+                "Adds 1–8 minutes per video depending on size. Uncheck if your file is already optimized."
+              }
+              onClick={(e) => e.preventDefault()}
+            >
+              <Info className="w-3.5 h-3.5" />
+            </span>
           </label>
         </>
       )}
