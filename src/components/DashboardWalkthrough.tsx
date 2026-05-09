@@ -73,6 +73,12 @@ const GLOBAL_STEPS: Step[] = [
     interactive: "drag",
   },
   {
+    title: "Image duration",
+    body: "Use this slider to set how long each image stays on screen during the slideshow. Videos always play through in full.",
+    selector: '[data-tour="duration"]',
+    hint: "Set duration",
+  },
+  {
     title: "Compress videos for TV",
     body: "Toggle ON re-encodes videos to 1080p H.264 in your browser before upload — smoother playback on Fire Stick, much smaller files. Toggle OFF to upload originals as-is. I'll flip it for you.",
     selector: '[data-tour="compress-toggle"]',
