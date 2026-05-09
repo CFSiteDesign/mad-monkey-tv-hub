@@ -427,7 +427,7 @@ function ImageDurationRow({ slug, initial }: { slug: string; initial: number }) 
         max={60}
         step={1}
         value={[secs]}
-        onValueChange={(v) => setSecs(v[0] ?? secs)}
+        onValueChange={(v: number[]) => setSecs(v[0] ?? secs)}
       />
       <div className="mt-3 flex items-center justify-between gap-3">
         <span className="text-xs text-soft">videos play in full</span>
