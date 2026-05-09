@@ -131,7 +131,16 @@ function Player({
       clearTimeout(advanceTimer.current);
       clearTimeout(pre);
     };
-  }, [current.id, current.file_type, next.id, next.file_type, next.file_url, paused, advance, imageSeconds]);
+  }, [
+    current.id,
+    current.file_type,
+    next.id,
+    next.file_type,
+    next.file_url,
+    paused,
+    advance,
+    imageSeconds,
+  ]);
 
   // Video pause/play — depend on the asset id, not idx, so a refetch with
   // identical data does not yank the video back to the start.
