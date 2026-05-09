@@ -67,16 +67,17 @@ const GLOBAL_STEPS: Step[] = [
   },
   {
     title: "Reorder with drag and drop",
-    body: "Grab the highlighted item and drag it down past the next row to reorder. Give it a try.",
+    body: "Grab the top file and drag it below the second file to reorder the slideshow. Give it a try.",
     selector: '[data-tour="reorder"]',
     hint: "Drag down to reorder",
     interactive: "drag",
   },
   {
     title: "Image duration",
-    body: "Use this slider to set how long each image stays on screen during the slideshow. Videos always play through in full.",
+    body: "Drag the slider to set how long each image stays on screen during the slideshow. Videos always play through in full. Try it.",
     selector: '[data-tour="duration"]',
-    hint: "Set duration",
+    hint: "Drag to set",
+    interactive: "slider",
   },
   {
     title: "Compress videos for TV",
@@ -121,16 +122,17 @@ const GM_STEPS: Step[] = [
   },
   {
     title: "Reorder by drag and drop",
-    body: "Grab the highlighted item and drag it down past the next row. Give it a try.",
+    body: "Grab the top file and drag it below the second file to reorder. Give it a try.",
     selector: '[data-tour="reorder"]',
     hint: "Drag down to reorder",
     interactive: "drag",
   },
   {
     title: "Image duration",
-    body: "Use the slider to set how long each image stays on screen. Videos always play in full.",
+    body: "Drag the slider to set how long each image stays on screen. Videos always play in full. Try it.",
     selector: '[data-tour="duration"]',
-    hint: "Set duration",
+    hint: "Drag to set",
+    interactive: "slider",
   },
   {
     title: "Compress videos for TV",
