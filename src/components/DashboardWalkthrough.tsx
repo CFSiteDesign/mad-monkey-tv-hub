@@ -317,6 +317,12 @@ export function DashboardWalkthrough({ locationKey, role }: {
         height: Math.min(vh - 16, rect.height + PADDING * 2),
       }
     : null;
+  const fallbackInteractiveTarget: Rect = {
+    top: Math.min(Math.max(280, vh * 0.56), vh - 220),
+    left: Math.min(Math.max(18, vw / 2 - 240), vw - 498),
+    width: Math.min(480, vw - 36),
+    height: 150,
+  };
 
   const TOOLTIP_W = 360;
   const TOOLTIP_H_EST = 240;
@@ -345,6 +351,13 @@ export function DashboardWalkthrough({ locationKey, role }: {
           left: spot.left + spot.width / 2 - 14,
           transform: "rotate(180deg)",
         };
+  } else if (current.interactive) {
+    tooltipStyle = {
+      top: 24,
+      left: "50%",
+      width: TOOLTIP_W,
+      transform: "translateX(-50%)",
+    };
   } else {
     tooltipStyle = {
       top: "50%",
@@ -355,7 +368,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] pointer-events-none">
+    <div className="fixed inset-0 z-[60] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
       {/* Dimmed overlay with spotlight cutout */}
       {spot ? (
         <>
@@ -405,7 +418,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
       ) : (
         <div
           className="absolute inset-0 bg-black/72 pointer-events-auto"
-          onClick={close}
+          onClick={(e) => e.stopPropagation()}
         />
       )}
 
@@ -465,9 +478,20 @@ export function DashboardWalkthrough({ locationKey, role }: {
       })()}
 
       {/* Interactive: drag a ghost file into the upload zone */}
-      {current.interactive === "fileDrop" && spot && (
+      {current.interactive === "fileDrop" && (
+        !spot && (
+          <div
+            className="absolute rounded-xl border-2 border-dashed border-white/70 bg-white/10 backdrop-blur-sm pointer-events-none flex items-center justify-center text-xs font-semibold text-white/85"
+            style={fallbackInteractiveTarget}
+          >
+            Drop the fake demo file here
+          </div>
+        )
+      )}
+
+      {current.interactive === "fileDrop" && (
         <InteractiveFileDrop
-          targetRect={spot}
+          targetRect={spot ?? fallbackInteractiveTarget}
           completed={completed}
           onSuccess={onInteractiveSuccess}
         />
@@ -609,9 +633,17 @@ function InteractiveFileDrop({
   completed: boolean;
   onSuccess: () => void;
 }) {
-  // Ghost starts above the upload zone, slightly to the right of center.
-  const startTop = Math.max(20, targetRect.top - 110);
-  const startLeft = targetRect.left + targetRect.width / 2 - 90;
+  // Keep the fake demo file inside the viewport so there is always something visible to grab.
+  const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024;
+  const viewportH = typeof window !== "undefined" ? window.innerHeight : 768;
+  const canSitAbove = targetRect.top > 132;
+  const startTop = canSitAbove
+    ? targetRect.top - 96
+    : Math.min(viewportH - 92, targetRect.top + targetRect.height + 18);
+  const startLeft = Math.min(
+    Math.max(18, targetRect.left + targetRect.width / 2 - 100),
+    viewportW - 218,
+  );
 
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: startTop, left: startLeft });
   const [dragging, setDragging] = useState(false);
@@ -668,11 +700,11 @@ function InteractiveFileDrop({
       style={{
         top: pos.top,
         left: pos.left,
-        width: 180,
+        width: 200,
         cursor: completed ? "default" : dragging ? "grabbing" : "grab",
         transition: dragging ? "none" : "top 220ms ease-out, left 220ms ease-out",
         touchAction: "none",
-        zIndex: 10,
+        zIndex: 80,
       }}
     >
       <div
@@ -690,7 +722,7 @@ function InteractiveFileDrop({
         }}
       >
         {completed ? <Check className="w-4 h-4" /> : <FileImage className="w-4 h-4" />}
-        <span>demo-image.jpg</span>
+        <span>fake-demo-image.jpg</span>
       </div>
       {!dragging && !completed && (
         <div
@@ -709,7 +741,7 @@ function InteractiveFileDrop({
       {!dragging && !completed && (
         <div className="mt-2 flex justify-center">
           <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
-            Grab me & drag into the box
+            Grab this fake file
           </span>
         </div>
       )}
@@ -729,7 +761,7 @@ function InteractiveRowDrag({
   onSuccess: () => void;
 }) {
   // Resolve the asset row that the spotlight is on, plus the next sibling.
-  const [geom, setGeom] = useState<{ r1: Rect; threshold: number } | null>(null);
+  const [geom, setGeom] = useState<{ r1: Rect; threshold: number; usingFallback: boolean } | null>(null);
 
   useLayoutEffect(() => {
     let raf = 0;
@@ -737,13 +769,32 @@ function InteractiveRowDrag({
       const handle = document.querySelector('[data-tour="reorder"]') as HTMLElement | null;
       const row1 = handle?.closest("div.flex") as HTMLElement | null;
       const row2 = row1?.nextElementSibling as HTMLElement | null;
-      if (!row1) { setGeom(null); return; }
+      if (!row1) {
+        const viewportW = window.innerWidth;
+        const viewportH = window.innerHeight;
+        const width = Math.min(520, viewportW - 36);
+        const nextGeom = {
+          r1: {
+            top: Math.min(Math.max(320, viewportH * 0.6), viewportH - 150),
+            left: Math.min(Math.max(18, viewportW / 2 - width / 2), viewportW - width - 18),
+            width,
+            height: 64,
+          },
+          threshold: 72,
+          usingFallback: true,
+        };
+        setGeom({
+          ...nextGeom,
+        });
+        return;
+      }
       const r1 = row1.getBoundingClientRect();
       const r2 = row2 ? row2.getBoundingClientRect() : null;
       const dy = r2 ? r2.top - r1.top : r1.height + 6;
       setGeom({
         r1: { top: r1.top, left: r1.left, width: r1.width, height: r1.height },
         threshold: dy * 0.6,
+        usingFallback: false,
       });
     };
     const tick = () => { measure(); raf = requestAnimationFrame(tick); };
@@ -757,7 +808,7 @@ function InteractiveRowDrag({
   const successFiredRef = useRef(false);
 
   if (!geom) return null;
-  const { r1, threshold } = geom;
+  const { r1, threshold, usingFallback } = geom;
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (completed) return;
@@ -816,6 +867,15 @@ function InteractiveRowDrag({
       <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]">
         {completed ? <Check className="w-6 h-6" /> : <GripVertical className="w-6 h-6" strokeWidth={2.5} />}
       </div>
+      {usingFallback && (
+        <div className="absolute inset-0 flex items-center gap-3 px-10 text-xs text-white/85">
+          <FileImage className="w-9 h-9 rounded-md bg-black/50 p-2" />
+          <div className="min-w-0">
+            <p className="truncate font-semibold">fake-demo-video.mp4</p>
+            <p className="text-white/55">Demo reorder item</p>
+          </div>
+        </div>
+      )}
       {!dragging && !completed && (
         <div
           className="absolute"
