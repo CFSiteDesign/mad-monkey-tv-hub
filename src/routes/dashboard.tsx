@@ -218,7 +218,7 @@ function ComingSoonCard({ name, country }: { name: string; country: string }) {
   );
 }
 
-const STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
 
 function StorageBar({ used }: { used: number }) {
   const pct = Math.min(100, (used / STORAGE_LIMIT_BYTES) * 100);
@@ -228,7 +228,7 @@ function StorageBar({ used }: { used: number }) {
       <div className="flex items-center justify-between text-[11px] text-soft mb-1">
         <span>Storage</span>
         <span className={warn ? "text-amber-400" : ""}>
-          {formatBytes(used)} / 10 GB
+          {formatBytes(used)} / 5 GB
         </span>
       </div>
       <Progress value={pct} className="h-1.5" />
