@@ -6,6 +6,7 @@ import { Pause, Play, Volume2, VolumeX, Heart } from "lucide-react";
 import { getPlayDataFn } from "@/lib/tv.functions";
 import {
   cacheMediaFiles,
+  createCachedMediaObjectUrl,
   registerMediaCacheWorker,
   type MediaCacheStatus,
 } from "@/lib/tv-media-cache";
@@ -57,6 +58,7 @@ function Player({
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
   const [showControls, setShowControls] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState("");
   const [cacheStatus, setCacheStatus] = useState<MediaCacheStatus>({
     total: assets.length,
     cached: 0,
@@ -70,6 +72,7 @@ function Player({
   const safeIdx = idx % assets.length;
   const current = assets[safeIdx];
   const next = assets[(safeIdx + 1) % assets.length];
+  const waitingForCache = cacheStatus.active && cacheStatus.cached < cacheStatus.total;
 
   const advance = useCallback(() => {
     setIdx((i) => (i + 1) % assets.length);
@@ -85,6 +88,24 @@ function Player({
       cancelled = true;
     };
   }, [assets]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = "";
+    if (waitingForCache) return;
+    createCachedMediaObjectUrl(current.file_url).then((src) => {
+      if (cancelled) {
+        if (src.startsWith("blob:")) URL.revokeObjectURL(src);
+        return;
+      }
+      objectUrl = src.startsWith("blob:") ? src : "";
+      setCurrentSrc(src);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [current.id, current.file_url, waitingForCache]);
 
   // Image timer — keyed by the asset id (stable across refetches) so a
   // background poll doesn't restart the slideshow mid-image.
@@ -152,8 +173,6 @@ function Player({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const waitingForCache = cacheStatus.active && cacheStatus.cached < cacheStatus.total;
-
   if (waitingForCache) {
     return (
       <div className="fixed inset-0 bg-black flex flex-col items-center justify-center px-6 text-center">
@@ -176,7 +195,7 @@ function Player({
       {current.file_type === "image" ? (
         <img
           key={current.id}
-          src={current.file_url}
+          src={currentSrc || current.file_url}
           className="w-full h-full object-contain"
           alt=""
         />
@@ -184,7 +203,7 @@ function Player({
         <video
           key={current.id}
           ref={videoRef}
-          src={current.file_url}
+          src={currentSrc || current.file_url}
           autoPlay
           muted={muted}
           playsInline
