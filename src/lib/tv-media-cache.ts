@@ -59,3 +59,12 @@ export async function cacheMediaFiles(
 
   onProgress?.({ total: uniqueUrls.length, cached, active: false });
 }
+
+export async function createCachedMediaObjectUrl(url: string) {
+  if (typeof window === "undefined" || !("caches" in window)) return url;
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(url, { ignoreVary: true });
+  if (!cached) return url;
+  const blob = await cached.blob();
+  return blob.size ? URL.createObjectURL(blob) : url;
+}
