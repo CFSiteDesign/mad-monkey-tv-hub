@@ -198,6 +198,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
   const [dontShow, setDontShow] = useState(false);
   const [running, setRunning] = useState(false);
   const [demo, setDemo] = useState<{ kind: Exclude<DemoKind, null>; rect: Rect } | null>(null);
+  const [completed, setCompleted] = useState(false);
 
   const steps = role === "global_marketing" ? GLOBAL_STEPS : GM_STEPS;
   const current = steps[step];
@@ -215,6 +216,9 @@ export function DashboardWalkthrough({ locationKey, role }: {
       setDontShow(false);
     }
   }, [storageKey]);
+
+  // Reset per-step completion state when the step changes.
+  useEffect(() => { setCompleted(false); }, [step]);
 
   // Lock body scroll while the tour is open.
   useEffect(() => {
@@ -266,6 +270,18 @@ export function DashboardWalkthrough({ locationKey, role }: {
     } finally {
       setRunning(false);
     }
+  }
+
+  function advance() {
+    if (step < steps.length - 1) setStep((s) => s + 1);
+    else close();
+  }
+
+  async function onInteractiveSuccess() {
+    setCompleted(true);
+    // Brief celebratory pause, then auto-advance.
+    await wait(550);
+    advance();
   }
 
   if (!open || !current) return null;
