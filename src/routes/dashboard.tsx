@@ -16,6 +16,7 @@ import { DashboardWalkthrough } from "@/components/DashboardWalkthrough";
 import { Trash2, Link2, FileVideo, UploadCloud, GripVertical, Clock, ChevronDown } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
+import { compressImage, compressVideo } from "@/lib/media-compress";
 
 const DASHBOARD_AUTH_KEY = "tvhub_view";
 
@@ -502,6 +503,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
   const [progress, setProgress] = useState<string>("");
   const [pct, setPct] = useState(0);
   const [fileIndex, setFileIndex] = useState({ current: 0, total: 0 });
+  const [compressVideos, setCompressVideos] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
@@ -512,7 +514,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
     if (!files || !files.length) return;
     const allowedExt = ["mp4", "mov", "png", "jpg", "jpeg"];
     const allowedMime = ["video/mp4", "video/quicktime", "image/png", "image/jpeg"];
-    const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+    const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500 MB
     const accepted: File[] = [];
     const rejected: string[] = [];
     const oversized: string[] = [];
@@ -527,7 +529,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
       alert(`Only MP4, MOV, PNG and JPEG are allowed.\nSkipped: ${rejected.join(", ")}`);
     }
     if (oversized.length) {
-      alert(`Maximum file size is 2 GB.\nSkipped: ${oversized.join(", ")}`);
+      alert(`Maximum file size is 500 MB.\nSkipped: ${oversized.join(", ")}`);
     }
     if (!accepted.length) return;
     setBusy(true);
@@ -540,19 +542,41 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
         i++;
         setFileIndex({ current: i, total: accepted.length });
         setPct(0);
-        setProgress(`Uploading ${i}/${accepted.length}: ${file.name}`);
         const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-        const type = file.type.startsWith("video") || ext === "mp4" || ext === "mov" ? "video" : "image";
+        const isVideo = file.type.startsWith("video") || ext === "mp4" || ext === "mov";
+
+        // ---- Step 1: optimize on-device (image: always, video: opt-in) ----
+        let toUpload = file;
+        try {
+          if (!isVideo) {
+            setProgress(`Optimizing image ${i}/${accepted.length}: ${file.name}`);
+            toUpload = await compressImage(file);
+          } else if (compressVideos) {
+            setProgress(`Preparing video ${i}/${accepted.length}: ${file.name}`);
+            toUpload = await compressVideo(file, ({ status, pct: p }) => {
+              setProgress(`${status} (${i}/${accepted.length}: ${file.name})`);
+              if (typeof p === "number") setPct(p);
+            });
+            setPct(0);
+          }
+        } catch (compressErr) {
+          console.warn("Compression failed, uploading original", compressErr);
+          toUpload = file;
+        }
+        if (cancelledRef.current) break;
+
+        const type = isVideo ? "video" : "image";
+        setProgress(`Uploading ${i}/${accepted.length}: ${toUpload.name}`);
         const auth_token = getDashboardAuthToken();
-        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: file.name, auth_token } }));
+        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: toUpload.name, auth_token } }));
         const controller = new AbortController();
         abortRef.current = controller;
-        await uploadToStorage(init.path, init.token, file, (p) => setPct(p), controller.signal);
+        await uploadToStorage(init.path, init.token, toUpload, (p) => setPct(p), controller.signal);
         abortRef.current = null;
         if (cancelledRef.current) break;
         await record({ data: {
-          slug, file_url: init.publicUrl, file_name: file.name,
-          file_size: file.size, file_type: type, auth_token,
+          slug, file_url: init.publicUrl, file_name: toUpload.name,
+          file_size: toUpload.size, file_type: type, auth_token,
         }});
       }
       if (!cancelledRef.current) onDone();
@@ -615,7 +639,23 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
           </div>
         </div>
       ) : (
-        <p className="text-xs text-soft mt-1">Goes live on the TV immediately.</p>
+        <>
+          <p className="text-xs text-soft mt-1">
+            Up to 500 MB. Images auto-optimized. Goes live on the TV immediately.
+          </p>
+          <label
+            className="mt-3 inline-flex items-center gap-2 text-xs text-soft cursor-pointer select-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={compressVideos}
+              onChange={(e) => setCompressVideos(e.target.checked)}
+              className="accent-white"
+            />
+            Compress videos for TV (recommended — smoother on Fire Stick)
+          </label>
+        </>
       )}
     </div>
   );
