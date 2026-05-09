@@ -13,6 +13,7 @@ import {
   type Session,
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
+import { DashboardWalkthrough } from "@/components/DashboardWalkthrough";
 import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, GripVertical, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
