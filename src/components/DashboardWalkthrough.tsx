@@ -682,9 +682,23 @@ function InteractiveFileDrop({
         <span>demo-image.jpg</span>
       </div>
       {!dragging && !completed && (
+        <div
+          className="absolute pointer-events-none"
+          style={{ top: -6, left: 130 }}
+        >
+          <div className="tv-tour-pointer">
+            <MousePointer2
+              className="w-7 h-7 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.95)]"
+              strokeWidth={2.5}
+              fill="white"
+            />
+          </div>
+        </div>
+      )}
+      {!dragging && !completed && (
         <div className="mt-2 flex justify-center">
           <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
-            Drag me into the box
+            Grab me & drag into the box
           </span>
         </div>
       )}
