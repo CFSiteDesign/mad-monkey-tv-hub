@@ -497,7 +497,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
       }
       onDone();
     } catch (e: any) {
-      alert(e.message || "Upload failed");
+      alert(formatUploadAlert(e));
     } finally {
       setBusy(false); setProgress(""); setPct(0); setFileIndex({ current: 0, total: 0 });
       if (inputRef.current) inputRef.current.value = "";
@@ -545,6 +545,13 @@ type UploadInit = {
   publicUrl: string;
 };
 
+type StorageUploadFailure = {
+  fileName: string;
+  message: string;
+  status?: number;
+  body?: string;
+};
+
 function normalizeUploadInit(value: unknown): UploadInit {
   const maybeWrapped = value as { data?: unknown; result?: unknown } | null;
   const raw = ((maybeWrapped?.data ?? maybeWrapped?.result ?? value) || {}) as Record<string, unknown>;
@@ -576,9 +583,74 @@ async function uploadToStorage(
       cacheControl: "3600",
     });
   if (error) {
-    throw new Error(`Upload failed for ${file.name}: ${error.message}`);
+    const failure = await enrichStorageUploadError(error, path, token, file);
+    console.error("TV content upload failed", failure);
+    throw Object.assign(new Error(failure.message), { uploadFailure: failure });
   }
   onProgress(100);
+}
+
+async function enrichStorageUploadError(error: unknown, path: string, token: string, file: File): Promise<StorageUploadFailure> {
+  const fallbackMessage = error instanceof Error ? error.message : String(error || "Upload failed");
+  const failure: StorageUploadFailure = { fileName: file.name, message: fallbackMessage };
+
+  try {
+    const { data: { publicUrl } } = supabase.storage.from("tv-content").getPublicUrl(path);
+    const projectOrigin = new URL(publicUrl).origin;
+    const response = await fetch(`${projectOrigin}/storage/v1/object/upload/sign/tv-content/${encodeStoragePath(path)}?token=${encodeURIComponent(token)}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        "Cache-Control": "3600",
+      },
+      body: file,
+    });
+
+    failure.status = response.status;
+    failure.body = await response.text();
+    if (!response.ok) failure.message = classifyStorageUploadFailure(failure, fallbackMessage);
+  } catch (rawError) {
+    failure.body = rawError instanceof Error ? rawError.message : String(rawError || "Unable to read raw storage response");
+  }
+
+  return failure;
+}
+
+function encodeStoragePath(path: string) {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+function classifyStorageUploadFailure(failure: StorageUploadFailure, fallbackMessage: string) {
+  const text = `${failure.status ?? ""} ${failure.body ?? ""} ${fallbackMessage}`.toLowerCase();
+
+  if (failure.status === 413 || text.includes("too large") || text.includes("file_size") || text.includes("payload too large")) {
+    return `Upload failed for ${failure.fileName}: file is too large. The current limit is 500 MB.`;
+  }
+  if (failure.status === 415 || text.includes("mime") || text.includes("content type") || text.includes("not allowed")) {
+    return `Upload failed for ${failure.fileName}: unsupported file type. Please use PNG, JPEG, MP4, or MOV.`;
+  }
+  if (failure.status === 401 || failure.status === 403 || text.includes("jwt") || text.includes("token") || text.includes("unauthorized")) {
+    return `Upload failed for ${failure.fileName}: the upload link expired or your session is no longer valid. Refresh and try again.`;
+  }
+  if (failure.status === 404 || text.includes("bucket") || text.includes("not found")) {
+    return `Upload failed for ${failure.fileName}: storage bucket not found. Please contact support.`;
+  }
+
+  return `Upload failed for ${failure.fileName}: ${fallbackMessage}`;
+}
+
+function formatUploadAlert(error: unknown) {
+  const failure = (error as { uploadFailure?: StorageUploadFailure } | null)?.uploadFailure;
+  if (failure) {
+    return failure.message;
+  }
+
+  const message = error instanceof Error ? error.message : String(error || "Upload failed");
+  if (message.includes("Unauthorized")) {
+    // Local HTTP cannot set the secure cross-site dashboard cookie; production HTTPS keeps recordUploadFn reachable.
+    return "Upload completed, but the dashboard session expired before it could be recorded. Refresh and try again.";
+  }
+  return message;
 }
 
 function formatBytes(n: number) {
