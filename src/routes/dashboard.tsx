@@ -7,6 +7,7 @@ import {
   getSessionFn, loginFn, logoutFn,
   listPropertiesFn, createUploadUrlFn, recordUploadFn,
   deleteAssetFn, reorderAssetsFn, regenerateCodeFn,
+  listPropertiesPublicFn, devLoginFn,
   type Session,
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
@@ -32,48 +33,70 @@ function DashboardPage() {
   return <DashboardInner session={session} onLogout={() => refetch()} />;
 }
 
-// ---------- Login ----------
+// ---------- Dev Picker (no login) ----------
 
 function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
-  const login = useServerFn(loginFn);
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const fetchProps = useServerFn(listPropertiesPublicFn);
+  const devLogin = useServerFn(devLoginFn);
+  const { data: props, isLoading } = useQuery({
+    queryKey: ["tv-picker"],
+    queryFn: () => fetchProps(),
+  });
+  const [busy, setBusy] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true); setError("");
-    const res = await login({ data: { code } });
-    setLoading(false);
-    if (!res.ok) { setError(res.error); return; }
-    onLoggedIn();
+  async function pick(target: string) {
+    setBusy(target);
+    const res = await devLogin({ data: { target } });
+    setBusy(null);
+    if (res.ok) onLoggedIn();
   }
 
+  const grouped: Record<string, NonNullable<typeof props>> = {};
+  for (const p of props ?? []) (grouped[p.country] ||= []).push(p);
+
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-4">
-      <div className="w-full max-w-md text-center">
-        <img src={logo} alt="TheoroX" className="h-10 mx-auto mb-12" />
-        <h1 className="text-5xl font-extrabold tracking-tight tv-gradient-underline mb-3">
-          TV Hub
-        </h1>
-        <p className="text-soft mb-10">Mad Monkey Hostels</p>
-        <form onSubmit={submit} className="space-y-4 text-left">
-          <label className="block text-xs uppercase tracking-widest text-soft">Access code</label>
-          <input
-            type="text" autoFocus autoComplete="off"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="tv-input"
-            placeholder="••••••••"
-          />
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <button type="submit" disabled={loading} className="tv-btn-solid w-full">
-            {loading ? "Checking…" : "Enter TV Hub"}
-          </button>
-          <p className="text-xs text-soft text-center pt-4">
-            Use your property code or Global Marketing master code
-          </p>
-        </form>
+    <div className="min-h-screen bg-black px-4 py-12">
+      <div className="max-w-3xl mx-auto">
+        <div className="text-center mb-12">
+          <img src={logo} alt="TheoroX" className="h-10 mx-auto mb-8" />
+          <h1 className="text-5xl font-extrabold tracking-tight tv-gradient-underline mb-3">
+            TV Hub
+          </h1>
+          <p className="text-soft">Pick a view (dev mode — no login)</p>
+        </div>
+
+        <button
+          onClick={() => pick("__global__")}
+          disabled={busy === "__global__"}
+          className="tv-btn-solid w-full mb-10 py-4 text-lg"
+        >
+          {busy === "__global__" ? "Entering…" : "Enter as Global Marketing"}
+        </button>
+
+        {isLoading && <p className="text-soft text-center">Loading…</p>}
+
+        <div className="space-y-8">
+          {Object.entries(grouped).map(([country, list]) => (
+            <section key={country}>
+              <h2 className="country-heading mb-4">{country}</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {list.map((p) => (
+                  <button
+                    key={p.slug}
+                    disabled={p.coming_soon || busy === p.slug}
+                    onClick={() => pick(p.slug)}
+                    className="tv-card p-4 text-left hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <p className="font-bold text-lg">{p.name}</p>
+                    <p className="text-xs text-soft mt-1">
+                      {p.coming_soon ? "Coming soon" : busy === p.slug ? "Entering…" : "Enter as GM"}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );
