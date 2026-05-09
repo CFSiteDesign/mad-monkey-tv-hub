@@ -17,6 +17,12 @@ import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, ArrowUp, ArrowDown, C
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 
+const DASHBOARD_AUTH_KEY = "tvhub_view";
+
+function getDashboardAuthToken() {
+  return window.localStorage.getItem(DASHBOARD_AUTH_KEY);
+}
+
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "TV Hub by TheoroX" }] }),
   component: DashboardPage,
@@ -35,7 +41,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const savedTarget = params.get("view") || window.localStorage.getItem("tvhub_view");
+    const savedTarget = params.get("view") || window.localStorage.getItem(DASHBOARD_AUTH_KEY);
     if (!savedTarget) return;
     let cancelled = false;
     setIsRestoringSession(true);
@@ -43,12 +49,12 @@ export function DashboardPage() {
       .then((res) => {
         if (cancelled) return;
         if (!res.ok) {
-          window.localStorage.removeItem("tvhub_view");
+          window.localStorage.removeItem(DASHBOARD_AUTH_KEY);
           window.history.replaceState(null, "", "/dashboard");
           setLocalSession(null);
           return;
         }
-        window.localStorage.setItem("tvhub_view", savedTarget);
+        window.localStorage.setItem(DASHBOARD_AUTH_KEY, savedTarget);
         setLocalSession(
           savedTarget === "__global__"
             ? { role: "global_marketing" }
@@ -69,7 +75,7 @@ export function DashboardPage() {
   }
   if (!activeSession) return <LoginScreen onLoggedIn={setLocalSession} />;
   return <DashboardInner session={activeSession} onLogout={() => {
-    window.localStorage.removeItem("tvhub_view");
+    window.localStorage.removeItem(DASHBOARD_AUTH_KEY);
     window.history.replaceState(null, "", "/dashboard");
     setLocalSession(null);
     refetch();
@@ -91,7 +97,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: (session: Session) => void })
     setBusy(target);
     const res = await devLogin({ data: { target } });
     if (res.ok) {
-      window.localStorage.setItem("tvhub_view", target);
+      window.localStorage.setItem(DASHBOARD_AUTH_KEY, target);
       window.history.replaceState(null, "", `/dashboard?view=${encodeURIComponent(target)}`);
       onLoggedIn(
         target === "__global__"
@@ -183,7 +189,7 @@ function GlobalView() {
   const fetchAll = useServerFn(listPropertiesFn);
   const { data, isLoading } = useQuery({
     queryKey: ["tv-all"],
-    queryFn: () => fetchAll(),
+    queryFn: () => fetchAll({ data: { auth_token: getDashboardAuthToken() } }),
   });
 
   if (isLoading || !data) return <div className="text-soft">Loading properties…</div>;
@@ -227,7 +233,7 @@ function GmView({ session }: { session: Extract<Session, { role: "gm" }> }) {
   const fetchAll = useServerFn(listPropertiesFn);
   const { data, isLoading } = useQuery({
     queryKey: ["tv-all"],
-    queryFn: () => fetchAll(),
+    queryFn: () => fetchAll({ data: { auth_token: getDashboardAuthToken() } }),
   });
   if (isLoading || !data) return <div className="text-soft">Loading…</div>;
   const property = data.properties.find((p) => p.slug === session.slug);
@@ -319,7 +325,7 @@ function PropertyCodeRow({ slug, initial }: { slug: string; initial: string }) {
   const [code, setCode] = useState(initial);
   const regen = useServerFn(regenerateCodeFn);
   const m = useMutation({
-    mutationFn: () => regen({ data: { slug } }),
+    mutationFn: () => regen({ data: { slug, auth_token: getDashboardAuthToken() } }),
     onSuccess: (res) => setCode(res.access_code),
   });
   return (
@@ -348,7 +354,7 @@ function AssetRow({
   const del = useServerFn(deleteAssetFn);
   const reorder = useServerFn(reorderAssetsFn);
   const m = useMutation({
-    mutationFn: () => del({ data: { id: asset.id } }),
+    mutationFn: () => del({ data: { id: asset.id, auth_token: getDashboardAuthToken() } }),
     onSuccess: onChanged,
   });
   const move = useMutation({
@@ -357,7 +363,7 @@ function AssetRow({
       const j = index + dir;
       if (j < 0 || j >= next.length) return Promise.resolve({ ok: true });
       [next[index], next[j]] = [next[j], next[index]];
-      return reorder({ data: { slug, ids: next } });
+      return reorder({ data: { slug, ids: next, auth_token: getDashboardAuthToken() } });
     },
     onSuccess: onChanged,
   });
@@ -413,7 +419,7 @@ function ImageDurationRow({ slug, initial }: { slug: string; initial: number }) 
   const [secs, setSecs] = useState(initial);
   const save = useServerFn(setImageDurationFn);
   const m = useMutation({
-    mutationFn: (n: number) => save({ data: { slug, seconds: n } }),
+    mutationFn: (n: number) => save({ data: { slug, seconds: n, auth_token: getDashboardAuthToken() } }),
   });
   return (
     <div className="mt-4 p-3 rounded-lg bg-black/40 border border-white/5">
@@ -481,11 +487,12 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
         setProgress(`Uploading ${i}/${accepted.length}: ${file.name}`);
         const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
         const type = file.type.startsWith("video") || ext === "mp4" || ext === "mov" ? "video" : "image";
-        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: file.name } }));
+        const auth_token = getDashboardAuthToken();
+        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: file.name, auth_token } }));
         await uploadToStorage(init.path, init.token, file, (p) => setPct(p));
         await record({ data: {
           slug, file_url: init.publicUrl, file_name: file.name,
-          file_size: file.size, file_type: type,
+          file_size: file.size, file_type: type, auth_token,
         }});
       }
       onDone();
@@ -542,8 +549,9 @@ function normalizeUploadInit(value: unknown): UploadInit {
   const maybeWrapped = value as { data?: unknown; result?: unknown } | null;
   const raw = ((maybeWrapped?.data ?? maybeWrapped?.result ?? value) || {}) as Record<string, unknown>;
   const signedUrl = typeof raw.signedUrl === "string" ? raw.signedUrl : "";
-  const pathFromSignedUrl = signedUrl.match(/\/object\/upload\/sign\/tv-content\/([^?]+)/)?.[1];
-  const tokenFromSignedUrl = signedUrl ? new URL(signedUrl).searchParams.get("token") : null;
+  const pathFromSignedUrl = signedUrl.match(/\/object\/upload\/sign\/tv-content\/([^?]+)/)?.[1]
+    ?? signedUrl.match(/\/object\/sign\/tv-content\/([^?]+)/)?.[1];
+  const tokenFromSignedUrl = signedUrl ? new URL(signedUrl, window.location.origin).searchParams.get("token") : null;
   const path = typeof raw.path === "string" && raw.path ? raw.path : pathFromSignedUrl ? decodeURIComponent(pathFromSignedUrl) : "";
   const token = typeof raw.token === "string" && raw.token ? raw.token : tokenFromSignedUrl ?? "";
   const publicUrl = typeof raw.publicUrl === "string" ? raw.publicUrl : "";
