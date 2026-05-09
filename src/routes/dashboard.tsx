@@ -17,6 +17,12 @@ import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, ArrowUp, ArrowDown, C
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 
+const DASHBOARD_AUTH_KEY = "tvhub_view";
+
+function getDashboardAuthToken() {
+  return window.localStorage.getItem(DASHBOARD_AUTH_KEY);
+}
+
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "TV Hub by TheoroX" }] }),
   component: DashboardPage,
@@ -35,7 +41,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const savedTarget = params.get("view") || window.localStorage.getItem("tvhub_view");
+    const savedTarget = params.get("view") || window.localStorage.getItem(DASHBOARD_AUTH_KEY);
     if (!savedTarget) return;
     let cancelled = false;
     setIsRestoringSession(true);
@@ -43,12 +49,12 @@ export function DashboardPage() {
       .then((res) => {
         if (cancelled) return;
         if (!res.ok) {
-          window.localStorage.removeItem("tvhub_view");
+          window.localStorage.removeItem(DASHBOARD_AUTH_KEY);
           window.history.replaceState(null, "", "/dashboard");
           setLocalSession(null);
           return;
         }
-        window.localStorage.setItem("tvhub_view", savedTarget);
+        window.localStorage.setItem(DASHBOARD_AUTH_KEY, savedTarget);
         setLocalSession(
           savedTarget === "__global__"
             ? { role: "global_marketing" }
@@ -69,7 +75,7 @@ export function DashboardPage() {
   }
   if (!activeSession) return <LoginScreen onLoggedIn={setLocalSession} />;
   return <DashboardInner session={activeSession} onLogout={() => {
-    window.localStorage.removeItem("tvhub_view");
+    window.localStorage.removeItem(DASHBOARD_AUTH_KEY);
     window.history.replaceState(null, "", "/dashboard");
     setLocalSession(null);
     refetch();
