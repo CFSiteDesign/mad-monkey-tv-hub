@@ -75,10 +75,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "TheoroX TV Hub | Hostel TV Content Management" },
       { name: "description", content: "TheoroX TV Hub is the central control panel for Mad Monkey Hostels — schedule, broadcast and manage TV content across every property from one place." },
       { property: "og:title", content: "TheoroX TV Hub | Hostel TV Content Management" },
-      { property: "og:description", content: "Centrally manage and broadcast TV content across all Mad Monkey Hostels properties from one TheoroX-powered hub." },
+      { property: "og:description", content: "TheoroX TV Hub is the central control panel for Mad Monkey Hostels — schedule, broadcast and manage TV content across every property from one place." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@TheoroX" },
+      { name: "twitter:title", content: "TheoroX TV Hub | Hostel TV Content Management" },
+      { name: "twitter:description", content: "TheoroX TV Hub is the central control panel for Mad Monkey Hostels — schedule, broadcast and manage TV content across every property from one place." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/tzR2PpIkesUVrzz7XGJoD3wIFsL2/social-images/social-1778294209982-TheroXShareIMG.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/tzR2PpIkesUVrzz7XGJoD3wIFsL2/social-images/social-1778294209982-TheroXShareIMG.webp" },
     ],
     links: [
       {
