@@ -11,7 +11,7 @@ export function TvHubHeader({
 
   return (
     <header className="flex items-center justify-between px-6 sm:px-10 py-5 border-b border-white/10">
-      <img src={logo} alt="TheoroX" className="h-9 w-auto" />
+      <img src={logo} alt="TheoroX" className="h-14 w-auto" />
       <div className="hidden md:block">
         <h1 className="tv-gradient-underline text-2xl font-bold">TV Hub</h1>
       </div>
