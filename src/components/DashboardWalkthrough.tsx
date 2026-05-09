@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Sparkles, MousePointer2, FileImage } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Sparkles, MousePointer2, FileImage, GripVertical, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -10,9 +10,13 @@ import { Button } from "@/components/ui/button";
  *   - show a hint pill near the pointer
  *   - on Next, run an `action` that actually performs the task on the page
  *     (clicks, toggles) or plays a demo animation (faux file drop, faux drag).
+ *   - or be `interactive`: the user must perform the gesture themselves
+ *     (drag a ghost file into the upload zone, drag a ghost row to reorder)
+ *     before the tour advances.
  */
 
 type DemoKind = "fileDrop" | "drag" | null;
+type InteractiveKind = "fileDrop" | "drag";
 
 type StepCtx = {
   /** Trigger a demo animation overlay anchored to a selector. */
@@ -32,6 +36,8 @@ type Step = {
   nextLabel?: string;
   /** Action performed when the user clicks Next. Runs before advancing. */
   action?: (ctx: StepCtx) => Promise<void> | void;
+  /** When set, the user must complete the gesture themselves to advance. */
+  interactive?: InteractiveKind;
 };
 
 const GLOBAL_STEPS: Step[] = [
@@ -54,23 +60,17 @@ const GLOBAL_STEPS: Step[] = [
   },
   {
     title: "Upload images and videos",
-    body: "Drop MP4, MOV, PNG or JPEG files here — or click to browse. Watch this demo file land in the zone.",
+    body: "Drop MP4, MOV, PNG or JPEG files here — or click to browse. Try it: drag the demo file into the highlighted zone.",
     selector: '[data-tour="upload"]',
     hint: "Drop files here",
-    nextLabel: "Show me",
-    action: async ({ playDemo }) => {
-      await playDemo("fileDrop", '[data-tour="upload"]');
-    },
+    interactive: "fileDrop",
   },
   {
     title: "Reorder with drag and drop",
-    body: "Grab any item by its handle and drag it where you want. Watch — I'll demo the gesture.",
+    body: "Grab the highlighted item and drag it down past the next row to reorder. Give it a try.",
     selector: '[data-tour="reorder"]',
-    hint: "Drag to reorder",
-    nextLabel: "Show me",
-    action: async ({ playDemo }) => {
-      await playDemo("drag", '[data-tour="reorder"]');
-    },
+    hint: "Drag down to reorder",
+    interactive: "drag",
   },
   {
     title: "Compress videos for TV",
@@ -108,23 +108,17 @@ const GM_STEPS: Step[] = [
   },
   {
     title: "Upload your media",
-    body: "Drop MP4, MOV, PNG or JPEG here or click to browse. Watch this demo file land in.",
+    body: "Drop MP4, MOV, PNG or JPEG here or click to browse. Try it: drag the demo file into the highlighted zone.",
     selector: '[data-tour="upload"]',
     hint: "Drop files here",
-    nextLabel: "Show me",
-    action: async ({ playDemo }) => {
-      await playDemo("fileDrop", '[data-tour="upload"]');
-    },
+    interactive: "fileDrop",
   },
   {
     title: "Reorder by drag and drop",
-    body: "Grab the handle on any item and drag it to change playback order. I'll demo the gesture.",
+    body: "Grab the highlighted item and drag it down past the next row. Give it a try.",
     selector: '[data-tour="reorder"]',
-    hint: "Drag to reorder",
-    nextLabel: "Show me",
-    action: async ({ playDemo }) => {
-      await playDemo("drag", '[data-tour="reorder"]');
-    },
+    hint: "Drag down to reorder",
+    interactive: "drag",
   },
   {
     title: "Image duration",
@@ -204,6 +198,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
   const [dontShow, setDontShow] = useState(false);
   const [running, setRunning] = useState(false);
   const [demo, setDemo] = useState<{ kind: Exclude<DemoKind, null>; rect: Rect } | null>(null);
+  const [completed, setCompleted] = useState(false);
 
   const steps = role === "global_marketing" ? GLOBAL_STEPS : GM_STEPS;
   const current = steps[step];
@@ -221,6 +216,9 @@ export function DashboardWalkthrough({ locationKey, role }: {
       setDontShow(false);
     }
   }, [storageKey]);
+
+  // Reset per-step completion state when the step changes.
+  useEffect(() => { setCompleted(false); }, [step]);
 
   // Lock body scroll while the tour is open.
   useEffect(() => {
@@ -272,6 +270,18 @@ export function DashboardWalkthrough({ locationKey, role }: {
     } finally {
       setRunning(false);
     }
+  }
+
+  function advance() {
+    if (step < steps.length - 1) setStep((s) => s + 1);
+    else close();
+  }
+
+  async function onInteractiveSuccess() {
+    setCompleted(true);
+    // Brief celebratory pause, then auto-advance.
+    await wait(550);
+    advance();
   }
 
   if (!open || !current) return null;
@@ -382,7 +392,7 @@ export function DashboardWalkthrough({ locationKey, role }: {
         />
       )}
 
-      {/* Demo animations */}
+      {/* Demo animations (used by `action` steps) */}
       {demo?.kind === "fileDrop" && (
         <div
           className="absolute pointer-events-none flex items-center justify-center"
@@ -437,6 +447,23 @@ export function DashboardWalkthrough({ locationKey, role }: {
         );
       })()}
 
+      {/* Interactive: drag a ghost file into the upload zone */}
+      {current.interactive === "fileDrop" && spot && (
+        <InteractiveFileDrop
+          targetRect={spot}
+          completed={completed}
+          onSuccess={onInteractiveSuccess}
+        />
+      )}
+
+      {/* Interactive: drag a ghost row down to reorder */}
+      {current.interactive === "drag" && (
+        <InteractiveRowDrag
+          completed={completed}
+          onSuccess={onInteractiveSuccess}
+        />
+      )}
+
       {/* Tooltip card */}
       <div
         className="absolute tv-card p-5 sm:p-6 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-300"
@@ -480,7 +507,14 @@ export function DashboardWalkthrough({ locationKey, role }: {
           >
             <ChevronLeft className="w-4 h-4" /> Back
           </Button>
-          {isLast ? (
+          {current.interactive ? (
+            <button
+              className="text-xs text-soft hover:text-white underline underline-offset-4"
+              onClick={advance}
+            >
+              {completed ? "Nice! Continuing…" : "Skip"}
+            </button>
+          ) : isLast ? (
             <button
               className="tv-btn-solid text-sm py-2 px-4 disabled:opacity-50"
               onClick={handleNext}
@@ -541,6 +575,233 @@ export function DashboardWalkthrough({ locationKey, role }: {
         }
         .tv-tour-drag-cursor { animation: tvTourDragCursor 1.8s cubic-bezier(.2,.7,.2,1) forwards; }
       `}</style>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Interactive: drag a ghost file into the upload zone                  */
+/* ------------------------------------------------------------------ */
+
+function InteractiveFileDrop({
+  targetRect,
+  completed,
+  onSuccess,
+}: {
+  targetRect: Rect;
+  completed: boolean;
+  onSuccess: () => void;
+}) {
+  // Ghost starts above the upload zone, slightly to the right of center.
+  const startTop = Math.max(20, targetRect.top - 110);
+  const startLeft = targetRect.left + targetRect.width / 2 - 90;
+
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: startTop, left: startLeft });
+  const [dragging, setDragging] = useState(false);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const successFiredRef = useRef(false);
+
+  // Reset position if the target moves.
+  useEffect(() => {
+    if (!dragging && !completed) setPos({ top: startTop, left: startLeft });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetRect.top, targetRect.left, targetRect.width]);
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (completed) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    offsetRef.current = { x: e.clientX - pos.left, y: e.clientY - pos.top };
+    setDragging(true);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setPos({ left: e.clientX - offsetRef.current.x, top: e.clientY - offsetRef.current.y });
+  }
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setDragging(false);
+    const cx = e.clientX;
+    const cy = e.clientY;
+    const inside =
+      cx >= targetRect.left &&
+      cx <= targetRect.left + targetRect.width &&
+      cy >= targetRect.top &&
+      cy <= targetRect.top + targetRect.height;
+    if (inside && !successFiredRef.current) {
+      successFiredRef.current = true;
+      // Snap to center of target.
+      setPos({
+        top: targetRect.top + targetRect.height / 2 - 18,
+        left: targetRect.left + targetRect.width / 2 - 90,
+      });
+      onSuccess();
+    } else {
+      // Snap back.
+      setPos({ top: startTop, left: startLeft });
+    }
+  }
+
+  return (
+    <div
+      className="absolute pointer-events-auto select-none"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        top: pos.top,
+        left: pos.left,
+        width: 180,
+        cursor: completed ? "default" : dragging ? "grabbing" : "grab",
+        transition: dragging ? "none" : "top 220ms ease-out, left 220ms ease-out",
+        touchAction: "none",
+        zIndex: 10,
+      }}
+    >
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-xl text-xs font-semibold ${
+          completed
+            ? "bg-emerald-500 text-white"
+            : "bg-white text-black ring-2 ring-white/80"
+        }`}
+        style={{
+          boxShadow: dragging
+            ? "0 18px 40px -12px rgba(255,45,135,0.6)"
+            : "0 8px 22px -8px rgba(0,0,0,0.6)",
+          transform: dragging ? "scale(1.04) rotate(-2deg)" : "none",
+          transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
+        }}
+      >
+        {completed ? <Check className="w-4 h-4" /> : <FileImage className="w-4 h-4" />}
+        <span>demo-image.jpg</span>
+      </div>
+      {!dragging && !completed && (
+        <div className="mt-2 flex justify-center">
+          <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
+            Drag me into the box
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Interactive: drag a ghost row down past the next row                 */
+/* ------------------------------------------------------------------ */
+
+function InteractiveRowDrag({
+  completed,
+  onSuccess,
+}: {
+  completed: boolean;
+  onSuccess: () => void;
+}) {
+  // Resolve the asset row that the spotlight is on, plus the next sibling.
+  const [geom, setGeom] = useState<{ r1: Rect; threshold: number } | null>(null);
+
+  useLayoutEffect(() => {
+    let raf = 0;
+    const measure = () => {
+      const handle = document.querySelector('[data-tour="reorder"]') as HTMLElement | null;
+      const row1 = handle?.closest("div.flex") as HTMLElement | null;
+      const row2 = row1?.nextElementSibling as HTMLElement | null;
+      if (!row1) { setGeom(null); return; }
+      const r1 = row1.getBoundingClientRect();
+      const r2 = row2 ? row2.getBoundingClientRect() : null;
+      const dy = r2 ? r2.top - r1.top : r1.height + 6;
+      setGeom({
+        r1: { top: r1.top, left: r1.left, width: r1.width, height: r1.height },
+        threshold: dy * 0.6,
+      });
+    };
+    const tick = () => { measure(); raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const [dy, setDy] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startYRef = useRef(0);
+  const successFiredRef = useRef(false);
+
+  if (!geom) return null;
+  const { r1, threshold } = geom;
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (completed) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    startYRef.current = e.clientY;
+    setDragging(true);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setDy(Math.max(-40, e.clientY - startYRef.current));
+  }
+  function onPointerUp() {
+    if (!dragging) return;
+    setDragging(false);
+    if (dy >= threshold && !successFiredRef.current) {
+      successFiredRef.current = true;
+      // Snap to swapped position.
+      setDy(threshold * 1.6);
+      onSuccess();
+    } else {
+      setDy(0);
+    }
+  }
+
+  return (
+    <div
+      className="absolute pointer-events-auto select-none"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        top: r1.top,
+        left: r1.left,
+        width: r1.width,
+        height: r1.height,
+        transform: `translateY(${dy}px)`,
+        transition: dragging ? "none" : "transform 220ms ease-out",
+        cursor: completed ? "default" : dragging ? "grabbing" : "grab",
+        touchAction: "none",
+        zIndex: 10,
+      }}
+    >
+      <div
+        className={`absolute inset-0 rounded-lg backdrop-blur-sm ${
+          completed
+            ? "bg-emerald-500/20 border-2 border-emerald-400"
+            : "bg-white/15 border-2 border-white/80"
+        }`}
+        style={{
+          boxShadow: dragging
+            ? "0 18px 40px -10px rgba(255,45,135,0.6)"
+            : "0 8px 24px -10px rgba(0,0,0,0.5)",
+        }}
+      />
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]">
+        {completed ? <Check className="w-6 h-6" /> : <GripVertical className="w-6 h-6" strokeWidth={2.5} />}
+      </div>
+      {!dragging && !completed && (
+        <div
+          className="absolute"
+          style={{ top: r1.height / 2 - 14, left: r1.width / 2 - 14 }}
+        >
+          <div className="tv-tour-pointer flex flex-col items-center gap-1">
+            <MousePointer2
+              className="w-7 h-7 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]"
+              strokeWidth={2.5}
+              fill="white"
+            />
+            <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
+              Drag down
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
