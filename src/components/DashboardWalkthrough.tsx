@@ -578,3 +578,230 @@ export function DashboardWalkthrough({ locationKey, role }: {
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Interactive: drag a ghost file into the upload zone                  */
+/* ------------------------------------------------------------------ */
+
+function InteractiveFileDrop({
+  targetRect,
+  completed,
+  onSuccess,
+}: {
+  targetRect: Rect;
+  completed: boolean;
+  onSuccess: () => void;
+}) {
+  // Ghost starts above the upload zone, slightly to the right of center.
+  const startTop = Math.max(20, targetRect.top - 110);
+  const startLeft = targetRect.left + targetRect.width / 2 - 90;
+
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: startTop, left: startLeft });
+  const [dragging, setDragging] = useState(false);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const successFiredRef = useRef(false);
+
+  // Reset position if the target moves.
+  useEffect(() => {
+    if (!dragging && !completed) setPos({ top: startTop, left: startLeft });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetRect.top, targetRect.left, targetRect.width]);
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (completed) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    offsetRef.current = { x: e.clientX - pos.left, y: e.clientY - pos.top };
+    setDragging(true);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setPos({ left: e.clientX - offsetRef.current.x, top: e.clientY - offsetRef.current.y });
+  }
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setDragging(false);
+    const cx = e.clientX;
+    const cy = e.clientY;
+    const inside =
+      cx >= targetRect.left &&
+      cx <= targetRect.left + targetRect.width &&
+      cy >= targetRect.top &&
+      cy <= targetRect.top + targetRect.height;
+    if (inside && !successFiredRef.current) {
+      successFiredRef.current = true;
+      // Snap to center of target.
+      setPos({
+        top: targetRect.top + targetRect.height / 2 - 18,
+        left: targetRect.left + targetRect.width / 2 - 90,
+      });
+      onSuccess();
+    } else {
+      // Snap back.
+      setPos({ top: startTop, left: startLeft });
+    }
+  }
+
+  return (
+    <div
+      className="absolute pointer-events-auto select-none"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        top: pos.top,
+        left: pos.left,
+        width: 180,
+        cursor: completed ? "default" : dragging ? "grabbing" : "grab",
+        transition: dragging ? "none" : "top 220ms ease-out, left 220ms ease-out",
+        touchAction: "none",
+        zIndex: 10,
+      }}
+    >
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-xl text-xs font-semibold ${
+          completed
+            ? "bg-emerald-500 text-white"
+            : "bg-white text-black ring-2 ring-white/80"
+        }`}
+        style={{
+          boxShadow: dragging
+            ? "0 18px 40px -12px rgba(255,45,135,0.6)"
+            : "0 8px 22px -8px rgba(0,0,0,0.6)",
+          transform: dragging ? "scale(1.04) rotate(-2deg)" : "none",
+          transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
+        }}
+      >
+        {completed ? <Check className="w-4 h-4" /> : <FileImage className="w-4 h-4" />}
+        <span>demo-image.jpg</span>
+      </div>
+      {!dragging && !completed && (
+        <div className="mt-2 flex justify-center">
+          <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
+            Drag me into the box
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Interactive: drag a ghost row down past the next row                 */
+/* ------------------------------------------------------------------ */
+
+function InteractiveRowDrag({
+  completed,
+  onSuccess,
+}: {
+  completed: boolean;
+  onSuccess: () => void;
+}) {
+  // Resolve the asset row that the spotlight is on, plus the next sibling.
+  const [geom, setGeom] = useState<{ r1: Rect; threshold: number } | null>(null);
+
+  useLayoutEffect(() => {
+    let raf = 0;
+    const measure = () => {
+      const handle = document.querySelector('[data-tour="reorder"]') as HTMLElement | null;
+      const row1 = handle?.closest("div.flex") as HTMLElement | null;
+      const row2 = row1?.nextElementSibling as HTMLElement | null;
+      if (!row1) { setGeom(null); return; }
+      const r1 = row1.getBoundingClientRect();
+      const r2 = row2 ? row2.getBoundingClientRect() : null;
+      const dy = r2 ? r2.top - r1.top : r1.height + 6;
+      setGeom({
+        r1: { top: r1.top, left: r1.left, width: r1.width, height: r1.height },
+        threshold: dy * 0.6,
+      });
+    };
+    const tick = () => { measure(); raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const [dy, setDy] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startYRef = useRef(0);
+  const successFiredRef = useRef(false);
+
+  if (!geom) return null;
+  const { r1, threshold } = geom;
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (completed) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    startYRef.current = e.clientY;
+    setDragging(true);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setDy(Math.max(-40, e.clientY - startYRef.current));
+  }
+  function onPointerUp() {
+    if (!dragging) return;
+    setDragging(false);
+    if (dy >= threshold && !successFiredRef.current) {
+      successFiredRef.current = true;
+      // Snap to swapped position.
+      setDy(threshold * 1.6);
+      onSuccess();
+    } else {
+      setDy(0);
+    }
+  }
+
+  return (
+    <div
+      className="absolute pointer-events-auto select-none"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        top: r1.top,
+        left: r1.left,
+        width: r1.width,
+        height: r1.height,
+        transform: `translateY(${dy}px)`,
+        transition: dragging ? "none" : "transform 220ms ease-out",
+        cursor: completed ? "default" : dragging ? "grabbing" : "grab",
+        touchAction: "none",
+        zIndex: 10,
+      }}
+    >
+      <div
+        className={`absolute inset-0 rounded-lg backdrop-blur-sm ${
+          completed
+            ? "bg-emerald-500/20 border-2 border-emerald-400"
+            : "bg-white/15 border-2 border-white/80"
+        }`}
+        style={{
+          boxShadow: dragging
+            ? "0 18px 40px -10px rgba(255,45,135,0.6)"
+            : "0 8px 24px -10px rgba(0,0,0,0.5)",
+        }}
+      />
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]">
+        {completed ? <Check className="w-6 h-6" /> : <GripVertical className="w-6 h-6" strokeWidth={2.5} />}
+      </div>
+      {!dragging && !completed && (
+        <div
+          className="absolute"
+          style={{ top: r1.height / 2 - 14, left: r1.width / 2 - 14 }}
+        >
+          <div className="tv-tour-pointer flex flex-col items-center gap-1">
+            <MousePointer2
+              className="w-7 h-7 text-white drop-shadow-[0_2px_8px_rgba(255,45,135,0.9)]"
+              strokeWidth={2.5}
+              fill="white"
+            />
+            <span className="tv-pill !py-1 !px-2 !text-[10px] tv-gradient-bg !text-black before:hidden font-bold whitespace-nowrap">
+              Drag down
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
