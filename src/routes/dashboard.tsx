@@ -7,13 +7,13 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   getSessionFn, loginFn, logoutFn,
   listPropertiesFn, createUploadUrlFn, recordUploadFn,
-  deleteAssetFn, reorderAssetsFn, regenerateCodeFn,
+  deleteAssetFn, reorderAssetsFn,
   setImageDurationFn,
   type Session,
 } from "@/lib/tv.functions";
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
 import { DashboardWalkthrough } from "@/components/DashboardWalkthrough";
-import { Trash2, RefreshCw, Link2, FileVideo, UploadCloud, GripVertical, Clock, ChevronDown } from "lucide-react";
+import { Trash2, Link2, FileVideo, UploadCloud, GripVertical, Clock, ChevronDown } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 
@@ -335,26 +335,13 @@ function PropertyCard({
   );
 }
 
-function PropertyCodeRow({ slug, initial }: { slug: string; initial: string }) {
-  const [code, setCode] = useState(initial);
-  const regen = useServerFn(regenerateCodeFn);
-  const m = useMutation({
-    mutationFn: () => regen({ data: { slug, auth_token: getDashboardAuthToken() } }),
-    onSuccess: (res) => setCode(res.access_code),
-  });
+function PropertyCodeRow({ initial }: { slug: string; initial: string }) {
   return (
     <div className="mt-5 pt-5 border-t border-white/10 flex items-center justify-between gap-4">
       <div>
         <p className="text-xs uppercase tracking-widest text-soft mb-1">GM access code</p>
-        <code className="font-mono text-lg tracking-widest">{code}</code>
+        <code className="font-mono text-lg tracking-widest">{initial}</code>
       </div>
-      <button
-        className="tv-btn"
-        disabled={m.isPending}
-        onClick={() => m.mutate()}
-      >
-        <RefreshCw className="w-4 h-4" /> {m.isPending ? "…" : "Regenerate"}
-      </button>
     </div>
   );
 }
