@@ -403,7 +403,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
       />
       <UploadCloud className="w-8 h-8 mx-auto mb-2 text-soft" />
       <p className="text-sm">
-        {busy ? progress : <>Drop JPEG / MP4 here or <span className="tv-gradient-text font-semibold">browse</span></>}
+        {busy ? progress : <>Drop images or videos here or <span className="tv-gradient-text font-semibold">browse</span></>}
       </p>
       {busy ? (
         <div className="mt-3 space-y-1" onClick={(e) => e.stopPropagation()}>
