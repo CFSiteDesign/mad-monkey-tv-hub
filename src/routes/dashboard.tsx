@@ -8,7 +8,6 @@ import {
   getSessionFn, loginFn, logoutFn,
   listPropertiesFn, createUploadUrlFn, recordUploadFn,
   deleteAssetFn, reorderAssetsFn, regenerateCodeFn,
-  listPropertiesPublicFn, devLoginFn,
   setImageDurationFn,
   type Session,
 } from "@/lib/tv.functions";
