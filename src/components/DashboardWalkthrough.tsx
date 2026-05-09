@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Sparkles, MousePointer2, FileImage } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Sparkles, MousePointer2, FileImage, GripVertical, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
