@@ -21,7 +21,9 @@ export const Route = createFileRoute("/dashboard")({
 
 export function DashboardPage() {
   const fetchSession = useServerFn(getSessionFn);
+  const restoreDevSession = useServerFn(devLoginFn);
   const [localSession, setLocalSession] = useState<Session | null>(null);
+  const [isRestoringSession, setIsRestoringSession] = useState(false);
   const { data: session, isLoading, refetch } = useQuery({
     queryKey: ["tv-session"],
     queryFn: () => fetchSession(),
@@ -32,16 +34,34 @@ export function DashboardPage() {
     const params = new URLSearchParams(window.location.search);
     const savedTarget = params.get("view") || window.localStorage.getItem("tvhub_view");
     if (!savedTarget) return;
-    setLocalSession(
-      savedTarget === "__global__"
-        ? { role: "global_marketing" }
-        : { role: "gm", slug: savedTarget, name: "", country: "" }
-    );
+    let cancelled = false;
+    setIsRestoringSession(true);
+    restoreDevSession({ data: { target: savedTarget } })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          window.localStorage.removeItem("tvhub_view");
+          window.history.replaceState(null, "", "/dashboard");
+          setLocalSession(null);
+          return;
+        }
+        window.localStorage.setItem("tvhub_view", savedTarget);
+        setLocalSession(
+          savedTarget === "__global__"
+            ? { role: "global_marketing" }
+            : { role: "gm", slug: savedTarget, name: "", country: "" }
+        );
+        refetch();
+      })
+      .finally(() => {
+        if (!cancelled) setIsRestoringSession(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   const activeSession = localSession ?? session;
 
-  if (isLoading && !activeSession) {
+  if ((isLoading || isRestoringSession) && !activeSession) {
     return <div className="min-h-screen bg-black flex items-center justify-center text-soft">Loading…</div>;
   }
   if (!activeSession) return <LoginScreen onLoggedIn={setLocalSession} />;
