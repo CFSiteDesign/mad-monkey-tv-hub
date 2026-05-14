@@ -387,9 +387,14 @@ function PropertyCodeRow({ initial }: { slug: string; initial: string }) {
 }
 
 function AssetList({
-  assets, slug, onChanged,
+  assets, slug, isGlobal = false, onChanged, locked = false,
 }: {
-  assets: Asset[]; slug: string; role: "global_marketing" | "gm"; onChanged: () => void;
+  assets: Asset[];
+  slug: string | null;
+  isGlobal?: boolean;
+  role: "global_marketing" | "gm";
+  onChanged: () => void;
+  locked?: boolean;
 }) {
   const del = useServerFn(deleteAssetFn);
   const reorder = useServerFn(reorderAssetsFn);
@@ -406,7 +411,7 @@ function AssetList({
 
   const persist = useMutation({
     mutationFn: (ids: string[]) =>
-      reorder({ data: { slug, ids, auth_token: getDashboardAuthToken() } }),
+      reorder({ data: { slug, ids, is_global: isGlobal, auth_token: getDashboardAuthToken() } }),
     onSuccess: onChanged,
     onError: () => setOrder(assets),
   });
@@ -445,13 +450,15 @@ function AssetList({
         return (
           <div
             key={asset.id}
-            draggable
+            draggable={!locked}
             onDragStart={(e) => {
+              if (locked) { e.preventDefault(); return; }
               setDragId(asset.id);
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", asset.id);
             }}
             onDragOver={(e) => {
+              if (locked) return;
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
               setOverId(asset.id);
@@ -463,15 +470,21 @@ function AssetList({
               isDragging ? "opacity-40 border-white/30" : isOver ? "border-white/40" : "border-white/5"
             }`}
           >
-            <button
-              type="button"
-              className="text-soft hover:text-white cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none"
-              title="Drag to reorder"
-              aria-label="Drag to reorder"
-              data-tour="reorder"
-            >
-              <GripVertical className="w-4 h-4" />
-            </button>
+            {locked ? (
+              <span className="text-soft p-1 -ml-1" title="Locked — managed by admin">
+                <Lock className="w-4 h-4" />
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="text-soft hover:text-white cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none"
+                title="Drag to reorder"
+                aria-label="Drag to reorder"
+                data-tour="reorder"
+              >
+                <GripVertical className="w-4 h-4" />
+              </button>
+            )}
             <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center shrink-0 overflow-hidden">
               {isImg
                 ? <img src={asset.file_url} className="w-full h-full object-cover" alt="" />
@@ -482,15 +495,21 @@ function AssetList({
               <p className="text-xs text-soft">{formatBytes(asset.file_size)}</p>
             </div>
             <span className="tv-pill text-[10px] !py-0.5 !px-2">
-              {asset.uploaded_by === "gm" ? "GM" : "Global"}
+              {isGlobal ? "Global" : asset.uploaded_by === "gm" ? "GM" : "Admin"}
             </span>
-            <button
-              className="text-soft hover:text-red-400 transition-colors p-2"
-              onClick={() => removeMut.mutate(asset.id)}
-              title="Delete"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {locked ? (
+              <span className="text-soft/40 p-2" title="Locked">
+                <Lock className="w-4 h-4" />
+              </span>
+            ) : (
+              <button
+                className="text-soft hover:text-red-400 transition-colors p-2"
+                onClick={() => removeMut.mutate(asset.id)}
+                title="Delete"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         );
       })}
@@ -534,7 +553,9 @@ function ImageDurationRow({ slug, initial }: { slug: string; initial: number }) 
 
 // ---------- Upload ----------
 
-function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) {
+function UploadDropzone({
+  slug, isGlobal = false, onDone,
+}: { slug: string | null; isGlobal?: boolean; onDone: () => void }) {
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string>("");
@@ -611,7 +632,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
         const type = isVideo ? "video" : "image";
         setProgress(`Uploading ${i}/${accepted.length}: ${toUpload.name}`);
         const auth_token = getDashboardAuthToken();
-        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: toUpload.name, auth_token } }));
+        const init = normalizeUploadInit(await createUrl({ data: { slug, file_name: toUpload.name, is_global: isGlobal, auth_token } }));
         const controller = new AbortController();
         abortRef.current = controller;
         await uploadToStorage(init.path, init.token, toUpload, (p) => setPct(p), controller.signal);
@@ -619,7 +640,7 @@ function UploadDropzone({ slug, onDone }: { slug: string; onDone: () => void }) 
         if (cancelledRef.current) break;
         await record({ data: {
           slug, file_url: init.publicUrl, file_name: toUpload.name,
-          file_size: toUpload.size, file_type: type, auth_token,
+          file_size: toUpload.size, file_type: type, is_global: isGlobal, auth_token,
         }});
       }
       if (!cancelledRef.current) onDone();
