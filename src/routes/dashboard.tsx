@@ -14,6 +14,7 @@ import {
 import { TvHubHeader, TvHubFooter } from "@/components/TvHubHeader";
 import { DashboardWalkthrough } from "@/components/DashboardWalkthrough";
 import { Trash2, Link2, FileVideo, UploadCloud, GripVertical, Clock, ChevronDown, Info } from "lucide-react";
+import { Lock, Globe } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 import { compressImage, compressVideo } from "@/lib/media-compress";
@@ -134,10 +135,7 @@ function DashboardInner({ session, onLogout }: { session: Session; onLogout: () 
     <div className="min-h-screen bg-black">
       <TvHubHeader session={session} onLogout={handleLogout} />
       <main className="px-6 sm:px-10 py-8 max-w-7xl mx-auto">
-        {session.role === "global_marketing"
-          ? <GlobalView />
-          : <GmView session={session} />
-        }
+        <AllPropertiesView session={session} />
       </main>
       <TvHubFooter />
       <DashboardWalkthrough locationKey={locationKey} role={session.role} />
@@ -145,22 +143,28 @@ function DashboardInner({ session, onLogout }: { session: Session; onLogout: () 
   );
 }
 
-// ---------- Global Marketing view ----------
+// ---------- Unified view ----------
 
-function GlobalView() {
+function AllPropertiesView({ session }: { session: Session }) {
   const fetchAll = useServerFn(listPropertiesFn);
   const { data, isLoading } = useQuery({
     queryKey: ["tv-all"],
     queryFn: () => fetchAll({ data: { auth_token: getDashboardAuthToken() } }),
   });
 
-  if (isLoading || !data) return <div className="text-soft">Loading properties…</div>;
+  if (isLoading || !data) return <div className="text-soft">Loading…</div>;
 
+  const isAdmin = session.role === "global_marketing";
   const grouped: Record<string, typeof data.properties> = {};
   for (const p of data.properties) (grouped[p.country] ||= []).push(p);
+  const ownSlug = session.role === "gm" ? session.slug : null;
 
   return (
     <div className="space-y-12">
+      <GlobalSection
+        assets={(data.globalAssets ?? []) as Asset[]}
+        canEdit={isAdmin}
+      />
       {Object.entries(grouped).map(([country, props]) => (
         <section key={country}>
           <h2 className="country-heading mb-6">{country}</h2>
@@ -168,7 +172,12 @@ function GlobalView() {
             {props.map((p) =>
               p.coming_soon
                 ? <ComingSoonCard key={p.id} name={p.name} country={p.country} />
-                : <CollapsibleProperty key={p.id} property={p as any} />
+                : <CollapsibleProperty
+                    key={p.id}
+                    property={p as any}
+                    role={session.role}
+                    defaultOpen={p.slug === ownSlug}
+                  />
             )}
           </div>
         </section>
@@ -177,8 +186,10 @@ function GlobalView() {
   );
 }
 
-function CollapsibleProperty({ property }: { property: PropertyData }) {
-  const [open, setOpen] = useState(false);
+function CollapsibleProperty({
+  property, role, defaultOpen = false,
+}: { property: PropertyData; role: "global_marketing" | "gm"; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const used = (property.assets || []).reduce((s, a) => s + (a.file_size || 0), 0);
   return (
     <div className="tv-card overflow-hidden">
@@ -201,7 +212,12 @@ function CollapsibleProperty({ property }: { property: PropertyData }) {
       </button>
       {open && (
         <div className="border-t border-white/10 p-5">
-          <PropertyCard property={property} role="global_marketing" embedded />
+          <PropertyCard
+            property={property}
+            role={role}
+            embedded
+            hideCode={role !== "global_marketing"}
+          />
         </div>
       )}
     </div>
@@ -238,29 +254,50 @@ function StorageBar({ used }: { used: number }) {
   );
 }
 
-// ---------- GM View ----------
+// ---------- Global section ----------
 
-function GmView({ session }: { session: Extract<Session, { role: "gm" }> }) {
-  const fetchAll = useServerFn(listPropertiesFn);
-  const { data, isLoading } = useQuery({
-    queryKey: ["tv-all"],
-    queryFn: () => fetchAll({ data: { auth_token: getDashboardAuthToken() } }),
-  });
-  if (isLoading || !data) return <div className="text-soft">Loading…</div>;
-  const property = data.properties.find((p) => p.slug === session.slug);
-  if (!property) return <div className="text-soft">Property not found.</div>;
-  const used = ((property as any).assets || []).reduce((s: number, a: Asset) => s + (a.file_size || 0), 0);
-
+function GlobalSection({ assets, canEdit }: { assets: Asset[]; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ queryKey: ["tv-all"] });
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="country-heading mb-2">{property.country}</h2>
-        <h1 className="text-4xl font-extrabold mb-1">{property.name}</h1>
-        <p className="text-soft">{(property as any).assets?.length || 0} items currently playing</p>
-        <div className="mt-3 max-w-md"><StorageBar used={used} /></div>
+    <section className="tv-card p-6 border-white/20">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Globe className="w-4 h-4 text-soft" />
+            <h2 className="text-2xl font-bold tv-gradient-text">Global Assets</h2>
+          </div>
+          <p className="text-sm text-soft max-w-2xl">
+            {canEdit
+              ? "Uploaded here, plays automatically on every property's TV. GMs cannot remove these."
+              : "Mandatory cross-property content. Plays first on every TV. Only the admin can change these."}
+          </p>
+        </div>
+        <span className="tv-pill shrink-0">{assets.length} items</span>
       </div>
-      <PropertyCard property={property as any} role="gm" hideCode />
-    </div>
+
+      {canEdit && (
+        <UploadDropzone slug={null} isGlobal onDone={refresh} />
+      )}
+
+      <div className="mt-5 space-y-2">
+        {assets.length === 0 && (
+          <p className="text-soft text-sm py-2">
+            {canEdit ? "No global content yet." : "No global content right now."}
+          </p>
+        )}
+        {assets.length > 0 && (
+          <AssetList
+            assets={assets}
+            slug={null}
+            isGlobal
+            role={canEdit ? "global_marketing" : "gm"}
+            onChanged={refresh}
+            locked={!canEdit}
+          />
+        )}
+      </div>
+    </section>
   );
 }
 
