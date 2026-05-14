@@ -29,6 +29,8 @@ function normalizeAuthToken(value?: string | null) {
   return token || null;
 }
 
+const GLOBAL_FOLDER = "__global__";
+
 export type Session =
   | { role: "global_marketing" }
   | { role: "gm"; slug: string; name: string; country: string };
@@ -155,25 +157,34 @@ export const listPropertiesFn = createServerFn({ method: "GET" })
   const { data: assets } = await supabaseAdmin
     .from("tv_assets")
     .select("*")
+    .eq("is_global", false)
     .in("property_slug", slugs.length ? slugs : ["__none__"])
     .order("display_order", { ascending: true });
 
-  const byProp: Record<string, typeof assets> = {};
+  const byProp: Record<string, NonNullable<typeof assets>> = {};
   for (const a of assets ?? []) {
-    (byProp[a.property_slug] ||= [] as any).push(a);
+    if (!a.property_slug) continue;
+    (byProp[a.property_slug] ||= []).push(a);
   }
 
-  // Hide access codes from GM scope
+  const { data: globalAssets } = await supabaseAdmin
+    .from("tv_assets")
+    .select("*")
+    .eq("is_global", true)
+    .order("display_order", { ascending: true });
+
+  // GMs can manage every property's content; only access codes are admin-only.
   const sanitized = orderedProps.map((p) => {
     if (session.role === "global_marketing") return { ...p, assets: byProp[p.slug] ?? [] };
     return {
       id: p.id, slug: p.slug, name: p.name, country: p.country,
       coming_soon: p.coming_soon, access_code: null as string | null,
-      assets: session.role === "gm" && session.slug === p.slug ? byProp[p.slug] ?? [] : [],
+      image_duration_seconds: p.image_duration_seconds,
+      assets: byProp[p.slug] ?? [],
     };
   });
 
-  return { session, properties: sanitized };
+  return { session, properties: sanitized, globalAssets: globalAssets ?? [] };
 });
 
 export const getPropertyAssetsFn = createServerFn({ method: "GET" })
@@ -193,28 +204,39 @@ export const getPropertyAssetsFn = createServerFn({ method: "GET" })
 
 export const recordUploadFn = createServerFn({ method: "POST" })
   .inputValidator((d: {
-    slug: string; file_url: string; file_name: string;
+    slug: string | null; file_url: string; file_name: string;
     file_size: number; file_type: "image" | "video";
-  } & AuthInput) => ({ ...d, auth_token: normalizeAuthToken(d.auth_token) }))
+    is_global?: boolean;
+  } & AuthInput) => ({
+    ...d,
+    slug: d.slug ?? null,
+    is_global: !!d.is_global,
+    auth_token: normalizeAuthToken(d.auth_token),
+  }))
   .handler(async ({ data }) => {
     const session = await resolveSession(data.auth_token);
     if (!session) throw new Response("Unauthorized", { status: 401 });
-    if (session.role === "gm" && session.slug !== data.slug) {
+    if (data.is_global && session.role !== "global_marketing") {
       throw new Response("Forbidden", { status: 403 });
     }
-    const { data: maxRow } = await supabaseAdmin
+    if (!data.is_global && !data.slug) {
+      throw new Response("Missing property", { status: 400 });
+    }
+    const maxQuery = supabaseAdmin
       .from("tv_assets")
       .select("display_order")
-      .eq("property_slug", data.slug)
       .order("display_order", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    const { data: maxRow } = data.is_global
+      ? await maxQuery.eq("is_global", true).maybeSingle()
+      : await maxQuery.eq("property_slug", data.slug!).eq("is_global", false).maybeSingle();
     const nextOrder = (maxRow?.display_order ?? -1) + 1;
 
     const { data: inserted, error } = await supabaseAdmin
       .from("tv_assets")
       .insert({
-        property_slug: data.slug,
+        property_slug: data.is_global ? null : data.slug,
+        is_global: data.is_global,
         file_url: data.file_url,
         file_name: data.file_name,
         file_size: data.file_size,
@@ -229,19 +251,24 @@ export const recordUploadFn = createServerFn({ method: "POST" })
   });
 
 export const createUploadUrlFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { slug: string; file_name: string } & AuthInput) => ({
-    slug: String(d.slug),
+  .inputValidator((d: { slug: string | null; file_name: string; is_global?: boolean } & AuthInput) => ({
+    slug: d.slug ?? null,
     file_name: String(d.file_name),
+    is_global: !!d.is_global,
     auth_token: normalizeAuthToken(d.auth_token),
   }))
   .handler(async ({ data }) => {
     const session = await resolveSession(data.auth_token);
     if (!session) throw new Response("Unauthorized", { status: 401 });
-    if (session.role === "gm" && session.slug !== data.slug) {
+    if (data.is_global && session.role !== "global_marketing") {
       throw new Response("Forbidden", { status: 403 });
     }
+    if (!data.is_global && !data.slug) {
+      throw new Response("Missing property", { status: 400 });
+    }
+    const folder = data.is_global ? GLOBAL_FOLDER : data.slug!;
     const safe = data.file_name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `${data.slug}/${Date.now()}-${safe}`;
+    const path = `${folder}/${Date.now()}-${safe}`;
     const { data: signed, error } = await supabaseAdmin.storage
       .from("tv-content")
       .createSignedUploadUrl(path);
@@ -258,7 +285,7 @@ export const deleteAssetFn = createServerFn({ method: "POST" })
     const { data: asset } = await supabaseAdmin
       .from("tv_assets").select("*").eq("id", data.id).maybeSingle();
     if (!asset) throw new Response("Not found", { status: 404 });
-    if (session.role === "gm" && session.slug !== asset.property_slug) {
+    if (asset.is_global && session.role !== "global_marketing") {
       throw new Response("Forbidden", { status: 403 });
     }
     // Delete from storage too
@@ -270,22 +297,27 @@ export const deleteAssetFn = createServerFn({ method: "POST" })
   });
 
 export const reorderAssetsFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { slug: string; ids: string[] } & AuthInput) => ({
-    slug: String(d.slug),
+  .inputValidator((d: { slug: string | null; ids: string[]; is_global?: boolean } & AuthInput) => ({
+    slug: d.slug ?? null,
     ids: Array.isArray(d.ids) ? d.ids.map(String) : [],
+    is_global: !!d.is_global,
     auth_token: normalizeAuthToken(d.auth_token),
   }))
   .handler(async ({ data }) => {
     const session = await resolveSession(data.auth_token);
     if (!session) throw new Response("Unauthorized", { status: 401 });
-    if (session.role === "gm" && session.slug !== data.slug) {
+    if (data.is_global && session.role !== "global_marketing") {
       throw new Response("Forbidden", { status: 403 });
     }
     for (let i = 0; i < data.ids.length; i++) {
-      await supabaseAdmin.from("tv_assets")
+      const upd = supabaseAdmin.from("tv_assets")
         .update({ display_order: i })
-        .eq("id", data.ids[i])
-        .eq("property_slug", data.slug);
+        .eq("id", data.ids[i]);
+      if (data.is_global) {
+        await upd.eq("is_global", true);
+      } else if (data.slug) {
+        await upd.eq("property_slug", data.slug).eq("is_global", false);
+      }
     }
     return { ok: true };
   });
@@ -340,10 +372,17 @@ export const getPlayDataFn = createServerFn({ method: "GET" })
       .eq("slug", data.slug)
       .maybeSingle();
     if (!prop) return { property: null, assets: [] as any[] };
-    const { data: assets } = await supabaseAdmin
+    const { data: localAssets } = await supabaseAdmin
       .from("tv_assets")
       .select("id,file_url,file_type,file_name,display_order")
       .eq("property_slug", data.slug)
+      .eq("is_global", false)
       .order("display_order", { ascending: true });
-    return { property: prop, assets: assets ?? [] };
+    const { data: globals } = await supabaseAdmin
+      .from("tv_assets")
+      .select("id,file_url,file_type,file_name,display_order")
+      .eq("is_global", true)
+      .order("display_order", { ascending: true });
+    // Global assets play first on every property, then property-specific.
+    return { property: prop, assets: [...(globals ?? []), ...(localAssets ?? [])] };
   });
