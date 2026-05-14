@@ -56,7 +56,8 @@ export type Database = {
           file_type: string
           file_url: string
           id: string
-          property_slug: string
+          is_global: boolean
+          property_slug: string | null
           uploaded_by: string
         }
         Insert: {
@@ -67,7 +68,8 @@ export type Database = {
           file_type: string
           file_url: string
           id?: string
-          property_slug: string
+          is_global?: boolean
+          property_slug?: string | null
           uploaded_by: string
         }
         Update: {
@@ -78,7 +80,8 @@ export type Database = {
           file_type?: string
           file_url?: string
           id?: string
-          property_slug?: string
+          is_global?: boolean
+          property_slug?: string | null
           uploaded_by?: string
         }
         Relationships: [
